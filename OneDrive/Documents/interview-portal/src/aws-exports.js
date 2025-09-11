@@ -10,8 +10,8 @@ const awsmobile = {
     "aws_appsync_apiKey": process.env.NEXT_PUBLIC_AWS_APPSYNC_API_KEY || "da2-2ottpnk4ejdarf3moy2nzq2adu",
     "aws_cognito_identity_pool_id": "eu-west-2:TBD",
     "aws_cognito_region": process.env.NEXT_PUBLIC_AWS_REGION || "eu-west-2",
-    "aws_user_pools_id": process.env.NEXT_PUBLIC_AWS_USER_POOLS_ID || "eu-west-2_FpwJJthe4",
-    "aws_user_pools_web_client_id": process.env.NEXT_PUBLIC_AWS_USER_POOLS_WEB_CLIENT_ID || "3juansb0jr3s3b8qouon7nr9gn",
+    "aws_user_pools_id": process.env.NEXT_PUBLIC_AWS_USER_POOLS_ID || "eu-west-2_VvBB48LmX",
+    "aws_user_pools_web_client_id": process.env.NEXT_PUBLIC_AWS_USER_POOLS_WEB_CLIENT_ID || "3843f0u00360rit8kml02ll07j",
     "oauth": {},
     "aws_cognito_username_attributes": [
         "EMAIL"
