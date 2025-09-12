@@ -37,7 +37,8 @@ export default function DebugConfigPage() {
       alert('Login successful!');
     } catch (error) {
       console.error('❌ Sign in error:', error);
-      alert(`Login failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Login failed: ${errorMessage}`);
     }
   };
 
