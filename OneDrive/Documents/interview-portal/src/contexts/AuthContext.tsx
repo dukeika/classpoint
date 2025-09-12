@@ -65,26 +65,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       console.log("✅ User found:", currentUser.username);
       console.log("🏷️ User groups from JWT:", groups);
       
-      // If no groups found in JWT token, fallback to direct Cognito check
+      // If no groups found in JWT token, use direct fallback
       if (groups.length === 0) {
-        console.log("🔄 No groups in JWT, fetching from Cognito directly...");
-        try {
-          // Import the specific API we need
-          const { listGroupsForUser } = await import('aws-amplify/auth/cognito');
-          const groupsResponse = await listGroupsForUser({
-            username: currentUser.username
-          });
-          groups = groupsResponse.groups?.map(g => g.groupName) || [];
-          console.log("🏷️ User groups from Cognito API:", groups);
-        } catch (groupError) {
-          console.error("❌ Failed to fetch groups from Cognito:", groupError);
-          // Fallback: Check if this is the known super admin email
-          if (currentUser.signInDetails?.loginId === 'dukeika@gmail.com' || currentUser.username === 'dukeika@gmail.com') {
-            console.log("🎯 Fallback: Recognized super admin email, assigning SuperAdmins group");
-            groups = ['SuperAdmins'];
-          }
+        console.log("🔄 No groups in JWT, using fallback detection...");
+        
+        // Direct fallback: Check if this is the known super admin email
+        const userEmail = currentUser.signInDetails?.loginId || currentUser.username;
+        console.log("🔍 Checking email for fallback:", userEmail);
+        
+        if (userEmail === 'dukeika@gmail.com') {
+          console.log("🎯 Fallback: Recognized super admin email, assigning SuperAdmins group");
+          groups = ['SuperAdmins'];
+        } else {
+          console.log("🔍 Unknown user, defaulting to Candidates group");
+          groups = ['Candidates'];
         }
       }
+      
+      console.log("🏆 Final groups assigned:", groups);
       
       const userInfo: User = {
         username: currentUser.username,
@@ -103,6 +101,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       
       // Simple redirect logic based on groups
       if (typeof window !== "undefined" && (window.location.pathname === "/" || window.location.pathname === "/login")) {
+        console.log("🎯 REDIRECT LOGIC - Current path:", window.location.pathname);
+        console.log("🎯 REDIRECT LOGIC - Groups to check:", groups);
+        console.log("🎯 REDIRECT LOGIC - Checking SuperAdmins:", groups.includes('SuperAdmins'));
+        console.log("🎯 REDIRECT LOGIC - Checking CompanyAdmins:", groups.includes('CompanyAdmins'));
+        
         if (groups.includes('SuperAdmins')) {
           console.log("🚀 Redirecting SuperAdmin to admin dashboard");
           router.push("/admin/dashboard");
@@ -110,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           console.log("🚀 Redirecting CompanyAdmin to company dashboard");
           router.push("/company/dashboard");
         } else {
-          console.log("🚀 Redirecting to candidate dashboard");
+          console.log("🚀 Redirecting to candidate dashboard (default)");
           router.push("/candidate/dashboard");
         }
       }
