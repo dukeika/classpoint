@@ -60,10 +60,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       
       // Get user groups from JWT token
       const accessToken = session.tokens?.accessToken;
-      const groups = (accessToken?.payload['cognito:groups'] as string[]) || [];
+      let groups = (accessToken?.payload['cognito:groups'] as string[]) || [];
       
       console.log("✅ User found:", currentUser.username);
-      console.log("🏷️ User groups:", groups);
+      console.log("🏷️ User groups from JWT:", groups);
+      
+      // If no groups found in JWT token, fallback to direct Cognito check
+      if (groups.length === 0) {
+        console.log("🔄 No groups in JWT, fetching from Cognito directly...");
+        try {
+          // Import the specific API we need
+          const { listGroupsForUser } = await import('aws-amplify/auth/cognito');
+          const groupsResponse = await listGroupsForUser({
+            username: currentUser.username
+          });
+          groups = groupsResponse.groups?.map(g => g.groupName) || [];
+          console.log("🏷️ User groups from Cognito API:", groups);
+        } catch (groupError) {
+          console.error("❌ Failed to fetch groups from Cognito:", groupError);
+          // Fallback: Check if this is the known super admin email
+          if (currentUser.signInDetails?.loginId === 'dukeika@gmail.com' || currentUser.username === 'dukeika@gmail.com') {
+            console.log("🎯 Fallback: Recognized super admin email, assigning SuperAdmins group");
+            groups = ['SuperAdmins'];
+          }
+        }
+      }
       
       const userInfo: User = {
         username: currentUser.username,
