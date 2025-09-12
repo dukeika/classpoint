@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 
@@ -9,9 +9,35 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
   
   const { signIn } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    // Load debug info on component mount
+    const loadDebugInfo = async () => {
+      try {
+        const { Amplify } = await import('aws-amplify');
+        const config = Amplify.getConfig();
+        setDebugInfo({
+          amplifyConfig: {
+            userPoolId: config?.Auth?.Cognito?.userPoolId,
+            userPoolClientId: config?.Auth?.Cognito?.userPoolClientId,
+            region: config?.Auth?.Cognito?.userPoolRegion || config?.aws_project_region,
+          },
+          envVars: {
+            NEXT_PUBLIC_AWS_USER_POOLS_ID: process.env.NEXT_PUBLIC_AWS_USER_POOLS_ID,
+            NEXT_PUBLIC_AWS_USER_POOLS_WEB_CLIENT_ID: process.env.NEXT_PUBLIC_AWS_USER_POOLS_WEB_CLIENT_ID,
+            NEXT_PUBLIC_AWS_REGION: process.env.NEXT_PUBLIC_AWS_REGION,
+          }
+        });
+      } catch (error) {
+        console.error('Failed to load debug info:', error);
+      }
+    };
+    loadDebugInfo();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,10 +45,29 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // Debug: Log Amplify configuration before attempting login
+      const { Amplify } = await import('aws-amplify');
+      const config = Amplify.getConfig();
+      console.log('🔍 Current Amplify Config:', {
+        userPoolId: config?.Auth?.Cognito?.userPoolId,
+        userPoolClientId: config?.Auth?.Cognito?.userPoolClientId,
+        region: config?.Auth?.Cognito?.userPoolRegion || config?.aws_project_region,
+      });
+      
+      console.log('🔍 Environment Variables:', {
+        NEXT_PUBLIC_AWS_USER_POOLS_ID: process.env.NEXT_PUBLIC_AWS_USER_POOLS_ID,
+        NEXT_PUBLIC_AWS_USER_POOLS_WEB_CLIENT_ID: process.env.NEXT_PUBLIC_AWS_USER_POOLS_WEB_CLIENT_ID,
+        NEXT_PUBLIC_AWS_REGION: process.env.NEXT_PUBLIC_AWS_REGION,
+      });
+      
+      console.log('🔐 Attempting login for:', email);
+      
       await signIn(email, password);
       // Redirect is handled in AuthContext after successful login
     } catch (error: any) {
-      console.error("Login error:", error);
+      console.error("❌ Login error details:", error);
+      console.error("❌ Error name:", error.name);
+      console.error("❌ Error message:", error.message);
       setError(error.message || "Login failed. Please try again.");
     } finally {
       setLoading(false);
@@ -93,8 +138,30 @@ export default function LoginPage() {
         <div className="mt-4 text-center text-sm text-gray-600">
           <p>Super Admin Test Account:</p>
           <p>Email: dukeika@gmail.com</p>
-          <p className="text-xs text-gray-500">Use your password</p>
+          <p className="text-xs text-gray-500">Password: lbifdfdfdX3</p>
         </div>
+
+        {/* Debug Information */}
+        {debugInfo && (
+          <div className="mt-6 p-4 bg-gray-100 rounded text-xs">
+            <h3 className="font-semibold mb-2">🔍 Debug Info (Check Console for Logs)</h3>
+            <div className="space-y-2">
+              <div>
+                <strong>Expected:</strong> User Pool: eu-west-2_FpwJJthe4, Client: 3juansb0jr3s3b8qouon7nr9gn
+              </div>
+              <div>
+                <strong>Amplify Config:</strong> 
+                Pool: {debugInfo.amplifyConfig?.userPoolId || 'undefined'}, 
+                Client: {debugInfo.amplifyConfig?.userPoolClientId || 'undefined'}
+              </div>
+              <div>
+                <strong>Env Vars:</strong> 
+                Pool: {debugInfo.envVars?.NEXT_PUBLIC_AWS_USER_POOLS_ID || 'undefined'}, 
+                Client: {debugInfo.envVars?.NEXT_PUBLIC_AWS_USER_POOLS_WEB_CLIENT_ID || 'undefined'}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
