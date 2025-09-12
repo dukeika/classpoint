@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn, signOut, getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
+import { signIn, signOut, signUp, getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 
 // Import Amplify config to ensure it's loaded
 import "../lib/amplify-config";
@@ -11,6 +11,14 @@ interface User {
   username: string;
   email: string;
   groups: string[];
+  userId: string;
+  sub: string;
+  attributes: {
+    email: string;
+    given_name?: string;
+    family_name?: string;
+    [key: string]: any;
+  };
 }
 
 interface AuthContextType {
@@ -18,6 +26,8 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  signUp: (email: string, password: string, attributes?: any) => Promise<void>;
+  userRole: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -58,7 +68,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const userInfo: User = {
         username: currentUser.username,
         email: currentUser.signInDetails?.loginId || currentUser.username,
-        groups: groups
+        groups: groups,
+        userId: currentUser.userId,
+        sub: currentUser.userId,
+        attributes: {
+          email: currentUser.signInDetails?.loginId || currentUser.username,
+          given_name: '',
+          family_name: ''
+        }
       };
       
       setUser(userInfo);
@@ -108,11 +125,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const handleSignUp = async (email: string, password: string, attributes: any = {}) => {
+    try {
+      console.log("📝 Signing up:", email);
+      await signUp({
+        username: email,
+        password,
+        options: {
+          userAttributes: {
+            email,
+            ...attributes
+          }
+        }
+      });
+      console.log("✅ Sign up successful");
+    } catch (error) {
+      console.error("❌ Sign up failed:", error);
+      throw error;
+    }
+  };
+
+  // Calculate user role based on groups
+  const userRole = user?.groups.includes('SuperAdmins') ? 'super_admin' : 
+                  user?.groups.includes('CompanyAdmins') ? 'company_admin' : 
+                  user?.groups.includes('Candidates') ? 'candidate' : null;
+
   const value: AuthContextType = {
     user,
     loading,
     signIn: handleSignIn,
     signOut: handleSignOut,
+    signUp: handleSignUp,
+    userRole,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
