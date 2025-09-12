@@ -1,0 +1,136 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Applied Behavioral Holistic Health Brand Colors */
+  --abhh-yellow: #f7e825;
+  --abhh-yellow-light: #fcee4a;
+  --abhh-yellow-dark: #e6d000;
+  --abhh-teal: #1b5e56;
+  --abhh-teal-light: #2d7a6e;
+  --abhh-teal-dark: #0d3d35;
+  --abhh-teal-50: #e6f2f0;
+  --abhh-teal-100: #cce5e1;
+  --abhh-teal-200: #99ccc3;
+  --abhh-teal-600: #1b5e56;
+  --abhh-teal-700: #164e47;
+  --abhh-teal-800: #113e38;
+  --abhh-teal-900: #0d3d35;
+
+  /* Standard grays for text and backgrounds */
+  --foreground-rgb: 15, 23, 42;
+  --background-start-rgb: 248, 250, 252;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 15, 23, 42;
+    --background-end-rgb: 30, 41, 59;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* ABHH Brand Color Classes */
+  .bg-abhh-yellow {
+    background-color: var(--abhh-yellow);
+  }
+
+  .bg-abhh-yellow-light {
+    background-color: var(--abhh-yellow-light);
+  }
+
+  .bg-abhh-teal {
+    background-color: var(--abhh-teal);
+  }
+
+  .bg-abhh-teal-light {
+    background-color: var(--abhh-teal-light);
+  }
+
+  .bg-abhh-teal-50 {
+    background-color: var(--abhh-teal-50);
+  }
+
+  .bg-abhh-teal-100 {
+    background-color: var(--abhh-teal-100);
+  }
+
+  .text-abhh-yellow {
+    color: var(--abhh-yellow);
+  }
+
+  .text-abhh-teal {
+    color: var(--abhh-teal);
+  }
+
+  .text-abhh-teal-light {
+    color: var(--abhh-teal-light);
+  }
+
+  .border-abhh-yellow {
+    border-color: var(--abhh-yellow);
+  }
+
+  .border-abhh-teal {
+    border-color: var(--abhh-teal);
+  }
+
+  .hover\:bg-abhh-yellow:hover {
+    background-color: var(--abhh-yellow-light);
+  }
+
+  .hover\:bg-abhh-teal:hover {
+    background-color: var(--abhh-teal-light);
+  }
+
+  .focus\:ring-abhh-yellow:focus {
+    --tw-ring-color: var(--abhh-yellow);
+  }
+
+  .focus\:ring-abhh-teal:focus {
+    --tw-ring-color: var(--abhh-teal);
+  }
+}
+
+/* Custom button styles for ABHH brand */
+.btn-abhh-primary {
+  background-color: var(--abhh-teal);
+  color: white;
+  border: 2px solid var(--abhh-teal);
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-abhh-primary:hover {
+  background-color: var(--abhh-teal-light);
+  border-color: var(--abhh-teal-light);
+}
+
+.btn-abhh-secondary {
+  background-color: var(--abhh-yellow);
+  color: var(--abhh-teal);
+  border: 2px solid var(--abhh-yellow);
+  font-weight: 600;
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-abhh-secondary:hover {
+  background-color: var(--abhh-yellow-light);
+  border-color: var(--abhh-yellow-light);
+}

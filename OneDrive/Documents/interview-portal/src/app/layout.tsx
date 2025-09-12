@@ -3,8 +3,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
-// Configure Amplify immediately on client side
-import "@/lib/amplify-setup";
 
 const inter = Inter({ subsets: ["latin"] });
 
