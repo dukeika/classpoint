@@ -44,17 +44,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // Initialize real Amplify authentication
-        const amplifyConfig = await import("@/lib/amplify-config");
-        const isRealAmplify = amplifyConfig.configureAmplify();
-        setAmplifyReady(isRealAmplify);
-
-        if (isRealAmplify) {
-          await checkUser();
-        } else {
-          console.warn("Amplify configuration failed - check AWS configuration");
-          setLoading(false);
-        }
+        // Amplify is already configured in layout.tsx via amplify-setup.ts
+        setAmplifyReady(true);
+        console.log("✅ Using pre-configured Amplify instance");
+        await checkUser();
       } catch (error) {
         console.error("Failed to initialize authentication:", error);
         setAmplifyReady(false);
