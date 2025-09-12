@@ -24,7 +24,7 @@ export default function LoginPage() {
           amplifyConfig: {
             userPoolId: config?.Auth?.Cognito?.userPoolId,
             userPoolClientId: config?.Auth?.Cognito?.userPoolClientId,
-            region: config?.Auth?.Cognito?.userPoolRegion || config?.aws_project_region,
+            region: (config?.Auth?.Cognito as any)?.region || config?.aws_project_region,
           },
           envVars: {
             NEXT_PUBLIC_AWS_USER_POOLS_ID: process.env.NEXT_PUBLIC_AWS_USER_POOLS_ID,
@@ -51,7 +51,7 @@ export default function LoginPage() {
       console.log('🔍 Current Amplify Config:', {
         userPoolId: config?.Auth?.Cognito?.userPoolId,
         userPoolClientId: config?.Auth?.Cognito?.userPoolClientId,
-        region: config?.Auth?.Cognito?.userPoolRegion || config?.aws_project_region,
+        region: (config?.Auth?.Cognito as any)?.region || config?.aws_project_region,
       });
       
       console.log('🔍 Environment Variables:', {
