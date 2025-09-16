@@ -1,0 +1,35 @@
+{
+  "Rules": [
+    {
+      "ID": "VideoLifecycle",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "videos/"
+      },
+      "Transitions": [
+        {
+          "Days": 90,
+          "StorageClass": "GLACIER"
+        },
+        {
+          "Days": 365,
+          "StorageClass": "DEEP_ARCHIVE"
+        }
+      ]
+    },
+    {
+      "ID": "DeleteOldVersions",
+      "Status": "Enabled",
+      "NoncurrentVersionExpiration": {
+        "NoncurrentDays": 30
+      }
+    },
+    {
+      "ID": "DeleteIncompleteUploads",
+      "Status": "Enabled",
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 7
+      }
+    }
+  ]
+}

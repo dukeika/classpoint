@@ -1,0 +1,524 @@
+service: ab-holistic-interview-portal
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, 'us-west-1'}
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  timeout: 30
+
+  environment:
+    STAGE: ${self:provider.stage}
+    REGION: ${self:provider.region}
+    JOBS_TABLE: ${self:custom.tablesNames.jobs}
+    APPLICANTS_TABLE: ${self:custom.tablesNames.applicants}
+    APPLICATIONS_TABLE: ${self:custom.tablesNames.applications}
+    TESTS_TABLE: ${self:custom.tablesNames.tests}
+    TEST_SUBMISSIONS_TABLE: ${self:custom.tablesNames.testSubmissions}
+    NOTIFICATIONS_TABLE: ${self:custom.tablesNames.notifications}
+    S3_BUCKET_RESUMES: ${self:custom.bucketNames.resumes}
+    S3_BUCKET_VIDEOS: ${self:custom.bucketNames.videos}
+    USER_POOL_ID: ${self:custom.cognitoUserPoolId}
+    JWT_SECRET: ${self:custom.jwtSecret}
+
+  iam:
+    role:
+      statements:
+        # DynamoDB permissions
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:BatchGetItem
+            - dynamodb:BatchWriteItem
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.jobs}"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.applicants}"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.applications}"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.tests}"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.testSubmissions}"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.notifications}"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.jobs}/index/*"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.applications}/index/*"
+
+        # S3 permissions
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:DeleteObject
+            - s3:GetObjectVersion
+          Resource:
+            - "arn:aws:s3:::${self:custom.bucketNames.resumes}/*"
+            - "arn:aws:s3:::${self:custom.bucketNames.videos}/*"
+
+        # Cognito permissions
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminUpdateUserAttributes
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:ListUsers
+          Resource:
+            - "arn:aws:cognito-idp:${self:provider.region}:*:userpool/${self:custom.cognitoUserPoolId}"
+
+        # SES permissions
+        - Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+          Resource: "*"
+
+        # SNS permissions
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource: "*"
+
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline
+
+custom:
+  # Table names
+  tablesNames:
+    jobs: ${self:service}-jobs-${self:provider.stage}
+    applicants: ${self:service}-applicants-${self:provider.stage}
+    applications: ${self:service}-applications-${self:provider.stage}
+    tests: ${self:service}-tests-${self:provider.stage}
+    testSubmissions: ${self:service}-test-submissions-${self:provider.stage}
+    notifications: ${self:service}-notifications-${self:provider.stage}
+
+  # S3 bucket names
+  bucketNames:
+    resumes: ${self:service}-resumes-${self:provider.stage}
+    videos: ${self:service}-videos-${self:provider.stage}
+
+  # Cognito configuration
+  cognitoUserPoolId: ${env:COGNITO_USER_POOL_ID, 'your-user-pool-id'}
+
+  # JWT Secret
+  jwtSecret: ${env:JWT_SECRET, 'your-jwt-secret-key'}
+
+  # Serverless offline configuration
+  serverless-offline:
+    httpPort: 3001
+    lambdaPort: 3002
+
+functions:
+  # Authentication functions
+  login:
+    handler: src/functions/auth/login.handler
+    events:
+      - http:
+          path: /auth/login
+          method: post
+          cors: true
+
+  register:
+    handler: src/functions/auth/register.handler
+    events:
+      - http:
+          path: /auth/register
+          method: post
+          cors: true
+
+  verify:
+    handler: src/functions/auth/verify.handler
+    events:
+      - http:
+          path: /auth/verify
+          method: post
+          cors: true
+
+  # Job management functions
+  createJob:
+    handler: src/functions/jobs/create.handler
+    events:
+      - http:
+          path: /jobs
+          method: post
+          cors: true
+          authorizer: authorizerFunc
+
+  getJobs:
+    handler: src/functions/jobs/list.handler
+    events:
+      - http:
+          path: /jobs
+          method: get
+          cors: true
+
+  getJob:
+    handler: src/functions/jobs/get.handler
+    events:
+      - http:
+          path: /jobs/{id}
+          method: get
+          cors: true
+
+  updateJob:
+    handler: src/functions/jobs/update.handler
+    events:
+      - http:
+          path: /jobs/{id}
+          method: put
+          cors: true
+          authorizer: authorizerFunc
+
+  deleteJob:
+    handler: src/functions/jobs/delete.handler
+    events:
+      - http:
+          path: /jobs/{id}
+          method: delete
+          cors: true
+          authorizer: authorizerFunc
+
+  # Application functions
+  createApplication:
+    handler: src/functions/applications/create.handler
+    events:
+      - http:
+          path: /applications
+          method: post
+          cors: true
+          authorizer: authorizerFunc
+
+  getApplications:
+    handler: src/functions/applications/list.handler
+    events:
+      - http:
+          path: /applications
+          method: get
+          cors: true
+          authorizer: authorizerFunc
+
+  getApplication:
+    handler: src/functions/applications/get.handler
+    events:
+      - http:
+          path: /applications/{id}
+          method: get
+          cors: true
+          authorizer: authorizerFunc
+
+  updateApplicationStage:
+    handler: src/functions/applications/updateStage.handler
+    events:
+      - http:
+          path: /applications/{id}/stage
+          method: put
+          cors: true
+          authorizer: authorizerFunc
+
+  # Test functions
+  createTest:
+    handler: src/functions/tests/create.handler
+    events:
+      - http:
+          path: /tests
+          method: post
+          cors: true
+          authorizer: authorizerFunc
+
+  getTest:
+    handler: src/functions/tests/get.handler
+    events:
+      - http:
+          path: /tests/{id}
+          method: get
+          cors: true
+          authorizer: authorizerFunc
+
+  submitTest:
+    handler: src/functions/tests/submit.handler
+    events:
+      - http:
+          path: /tests/{id}/submit
+          method: post
+          cors: true
+          authorizer: authorizerFunc
+
+  # File upload functions
+  getUploadUrl:
+    handler: src/functions/files/getUploadUrl.handler
+    events:
+      - http:
+          path: /files/upload-url
+          method: post
+          cors: true
+          authorizer: authorizerFunc
+
+  # Notification functions
+  sendNotification:
+    handler: src/functions/notifications/send.handler
+    events:
+      - http:
+          path: /notifications/send
+          method: post
+          cors: true
+          authorizer: authorizerFunc
+
+  # Authorizer function
+  authorizerFunc:
+    handler: src/functions/auth/authorizer.handler
+
+resources:
+  Resources:
+    # DynamoDB Tables
+    JobsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tablesNames.jobs}
+        AttributeDefinitions:
+          - AttributeName: jobId
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: S
+        KeySchema:
+          - AttributeName: jobId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: StatusIndex
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+
+    ApplicantsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tablesNames.applicants}
+        AttributeDefinitions:
+          - AttributeName: applicantId
+            AttributeType: S
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: applicantId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: EmailIndex
+            KeySchema:
+              - AttributeName: email
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+
+    ApplicationsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tablesNames.applications}
+        AttributeDefinitions:
+          - AttributeName: applicationId
+            AttributeType: S
+          - AttributeName: jobId
+            AttributeType: S
+          - AttributeName: applicantId
+            AttributeType: S
+          - AttributeName: stage
+            AttributeType: S
+        KeySchema:
+          - AttributeName: applicationId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: JobIndex
+            KeySchema:
+              - AttributeName: jobId
+                KeyType: HASH
+              - AttributeName: stage
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+          - IndexName: ApplicantIndex
+            KeySchema:
+              - AttributeName: applicantId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+
+    TestsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tablesNames.tests}
+        AttributeDefinitions:
+          - AttributeName: testId
+            AttributeType: S
+          - AttributeName: jobId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: testId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: JobIndex
+            KeySchema:
+              - AttributeName: jobId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+
+    TestSubmissionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tablesNames.testSubmissions}
+        AttributeDefinitions:
+          - AttributeName: submissionId
+            AttributeType: S
+          - AttributeName: testId
+            AttributeType: S
+          - AttributeName: applicantId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: submissionId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: TestIndex
+            KeySchema:
+              - AttributeName: testId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+          - IndexName: ApplicantIndex
+            KeySchema:
+              - AttributeName: applicantId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+
+    NotificationsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tablesNames.notifications}
+        AttributeDefinitions:
+          - AttributeName: notificationId
+            AttributeType: S
+          - AttributeName: recipientId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: notificationId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: RecipientIndex
+            KeySchema:
+              - AttributeName: recipientId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+
+    # S3 Buckets
+    ResumesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucketNames.resumes}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        VersioningConfiguration:
+          Status: Enabled
+        LifecycleConfiguration:
+          Rules:
+            - Id: DeleteOldVersions
+              Status: Enabled
+              NoncurrentVersionExpirationInDays: 30
+
+    VideosBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucketNames.videos}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        VersioningConfiguration:
+          Status: Enabled
+        LifecycleConfiguration:
+          Rules:
+            - Id: DeleteOldVersions
+              Status: Enabled
+              NoncurrentVersionExpirationInDays: 30
+            - Id: ArchiveOldVideos
+              Status: Enabled
+              Transitions:
+                - StorageClass: GLACIER
+                  TransitionInDays: 90
+
+  Outputs:
+    ApiGatewayRestApiId:
+      Value:
+        Ref: ApiGatewayRestApi
+      Export:
+        Name: ${self:service}-${self:provider.stage}-ApiGatewayRestApiId
+
+    ApiGatewayRestApiRootResourceId:
+      Value:
+        Fn::GetAtt:
+          - ApiGatewayRestApi
+          - RootResourceId
+      Export:
+        Name: ${self:service}-${self:provider.stage}-ApiGatewayRestApiRootResourceId
