@@ -1,0 +1,132 @@
+service: ab-holistic-interview-portal
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, 'us-west-1'}
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  timeout: 30
+
+  environment:
+    STAGE: ${self:provider.stage}
+    REGION: ${self:provider.region}
+    USER_POOL_ID: ${env:USER_POOL_ID, 'us-west-1_n0Ij4uUuB'}
+    USER_POOL_WEB_CLIENT_ID: ${env:USER_POOL_WEB_CLIENT_ID, '742a4q83obkfejdod7d1retvep'}
+    JWT_SECRET: ${env:JWT_SECRET, 'your-jwt-secret-key-change-in-production'}
+
+  iam:
+    role:
+      statements:
+        # Cognito permissions
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminUpdateUserAttributes
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:ListUsers
+            - cognito-idp:InitiateAuth
+          Resource: "*"
+
+        # SES permissions
+        - Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+          Resource: "*"
+
+        # S3 permissions
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:DeleteObject
+            - s3:GetSignedUrl
+          Resource: "*"
+
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    httpPort: 3001
+    lambdaPort: 3002
+
+functions:
+  # Authentication functions
+  login:
+    handler: src/functions/auth/login.handler
+    events:
+      - http:
+          path: /auth/login
+          method: post
+          cors: true
+
+  register:
+    handler: src/functions/auth/register.handler
+    events:
+      - http:
+          path: /auth/register
+          method: post
+          cors: true
+
+  verify:
+    handler: src/functions/auth/verify.handler
+    events:
+      - http:
+          path: /auth/verify
+          method: post
+          cors: true
+
+  # Job management functions
+  createJob:
+    handler: src/functions/jobs/create.handler
+    events:
+      - http:
+          path: /jobs
+          method: post
+          cors: true
+
+  getJobs:
+    handler: src/functions/jobs/list.handler
+    events:
+      - http:
+          path: /jobs
+          method: get
+          cors: true
+
+  getJob:
+    handler: src/functions/jobs/get.handler
+    events:
+      - http:
+          path: /jobs/{id}
+          method: get
+          cors: true
+
+  updateJob:
+    handler: src/functions/jobs/update.handler
+    events:
+      - http:
+          path: /jobs/{id}
+          method: put
+          cors: true
+
+  deleteJob:
+    handler: src/functions/jobs/delete.handler
+    events:
+      - http:
+          path: /jobs/{id}
+          method: delete
+          cors: true
+
+  # File upload functions
+  getUploadUrl:
+    handler: src/functions/files/getUploadUrl.handler
+    events:
+      - http:
+          path: /files/upload-url
+          method: post
+          cors: true

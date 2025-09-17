@@ -1,0 +1,1123 @@
+# ========================================
+# Optimized Serverless Configuration for AB Holistic Interview Portal
+#
+# This configuration includes:
+# - Performance optimizations
+# - Security enhancements
+# - Cost optimization
+# - Monitoring and observability
+# - Environment-specific configurations
+# - Error handling improvements
+# ========================================
+
+service: ab-holistic-interview-portal
+
+frameworkVersion: '3'
+
+# ========================================
+# Provider Configuration
+# ========================================
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, 'us-west-1'}
+  stage: ${opt:stage, 'dev'}
+
+  # Performance optimizations
+  memorySize: ${self:custom.memorySize.${self:provider.stage}, 512}
+  timeout: ${self:custom.timeout.${self:provider.stage}, 30}
+  reservedConcurrency: ${self:custom.reservedConcurrency.${self:provider.stage}, 10}
+
+  # Architecture
+  architecture: arm64  # Better price-performance ratio
+
+  # Runtime management
+  runtimeManagement:
+    mode: auto  # Auto-update runtime patches
+
+  # VPC Configuration (for enhanced security in production)
+  vpc: ${self:custom.vpc.${self:provider.stage}, {}}
+
+  # Environment variables with stage-specific values
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    STAGE: ${self:provider.stage}
+    REGION: ${self:provider.region}
+
+    # Service configuration
+    SERVICE_NAME: ${self:service}
+    SERVICE_VERSION: ${self:custom.version}
+
+    # Logging configuration
+    LOG_LEVEL: ${self:custom.logLevel.${self:provider.stage}, 'INFO'}
+
+    # Database tables
+    JOBS_TABLE: ${self:custom.tablesNames.jobs}
+    APPLICANTS_TABLE: ${self:custom.tablesNames.applicants}
+    APPLICATIONS_TABLE: ${self:custom.tablesNames.applications}
+    TESTS_TABLE: ${self:custom.tablesNames.tests}
+    TEST_SUBMISSIONS_TABLE: ${self:custom.tablesNames.testSubmissions}
+    NOTIFICATIONS_TABLE: ${self:custom.tablesNames.notifications}
+
+    # S3 buckets
+    S3_BUCKET_RESUMES: ${self:custom.bucketNames.resumes}
+    S3_BUCKET_VIDEOS: ${self:custom.bucketNames.videos}
+
+    # Authentication
+    USER_POOL_ID: ${self:custom.cognitoUserPoolId}
+    USER_POOL_WEB_CLIENT_ID: ${self:custom.cognitoUserPoolWebClientId}
+    JWT_SECRET: ${self:custom.jwtSecret}
+
+    # Security configuration
+    CORS_ORIGIN: ${self:custom.corsOrigins.${self:provider.stage}}
+    ENCRYPTION_KEY: ${self:custom.encryptionKey}
+
+    # Performance configuration
+    CACHE_TTL: ${self:custom.cacheTtl.${self:provider.stage}, 300}
+    DB_CONNECTION_POOL_SIZE: ${self:custom.dbConnectionPoolSize.${self:provider.stage}, 10}
+
+    # External service configuration
+    SES_REGION: ${self:provider.region}
+    SNS_REGION: ${self:provider.region}
+
+    # Feature flags
+    ENABLE_PERFORMANCE_MONITORING: ${self:custom.featureFlags.performanceMonitoring.${self:provider.stage}, 'true'}
+    ENABLE_DETAILED_LOGGING: ${self:custom.featureFlags.detailedLogging.${self:provider.stage}, 'false'}
+    ENABLE_RATE_LIMITING: ${self:custom.featureFlags.rateLimiting.${self:provider.stage}, 'true'}
+
+  # Enhanced IAM configuration
+  iam:
+    role:
+      name: ${self:service}-${self:provider.stage}-lambda-role
+      managedPolicies:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      statements:
+        # DynamoDB permissions with least privilege
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:BatchGetItem
+            - dynamodb:BatchWriteItem
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.jobs}"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.applicants}"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.applications}"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.tests}"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.testSubmissions}"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.notifications}"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.jobs}/index/*"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.tablesNames.applications}/index/*"
+
+        # S3 permissions with least privilege
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:DeleteObject
+            - s3:GetObjectVersion
+            - s3:PutObjectAcl
+          Resource:
+            - "arn:aws:s3:::${self:custom.bucketNames.resumes}/*"
+            - "arn:aws:s3:::${self:custom.bucketNames.videos}/*"
+
+        - Effect: Allow
+          Action:
+            - s3:ListBucket
+            - s3:GetBucketLocation
+          Resource:
+            - "arn:aws:s3:::${self:custom.bucketNames.resumes}"
+            - "arn:aws:s3:::${self:custom.bucketNames.videos}"
+
+        # Cognito permissions
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminUpdateUserAttributes
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:ListUsers
+            - cognito-idp:AdminListGroupsForUser
+          Resource:
+            - "arn:aws:cognito-idp:${self:provider.region}:*:userpool/${self:custom.cognitoUserPoolId}"
+
+        # SES permissions
+        - Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+            - ses:GetSendQuota
+            - ses:GetSendStatistics
+          Resource: "*"
+          Condition:
+            StringEquals:
+              "ses:FromAddress": ${self:custom.emailFromAddress}
+
+        # SNS permissions
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource:
+            - "arn:aws:sns:${self:provider.region}:*:${self:service}-${self:provider.stage}-*"
+
+        # CloudWatch Logs permissions (for enhanced monitoring)
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogStreams
+            - logs:DescribeLogGroups
+          Resource:
+            - "arn:aws:logs:${self:provider.region}:*:log-group:/aws/lambda/${self:service}-${self:provider.stage}-*"
+
+        # X-Ray permissions (for tracing)
+        - Effect: Allow
+          Action:
+            - xray:PutTraceSegments
+            - xray:PutTelemetryRecords
+          Resource: "*"
+
+        # KMS permissions for encryption
+        - Effect: Allow
+          Action:
+            - kms:Decrypt
+            - kms:DescribeKey
+          Resource:
+            - "arn:aws:kms:${self:provider.region}:*:key/${self:custom.kmsKeyId}"
+
+  # Enhanced logging configuration
+  logs:
+    restApi:
+      accessLogging: true
+      format: >-
+        requestId: $requestId,
+        requestTime: $requestTime,
+        httpMethod: $httpMethod,
+        resourcePath: $resourcePath,
+        status: $status,
+        responseLength: $responseLength,
+        responseTime: $responseTime,
+        ip: $sourceIp,
+        userAgent: $userAgent,
+        error: $error.message
+      executionLogging: true
+      level: ${self:custom.apiGatewayLogLevel.${self:provider.stage}, 'INFO'}
+      fullExecutionData: ${self:custom.apiGatewayFullExecution.${self:provider.stage}, false}
+
+  # API Gateway configuration
+  apiGateway:
+    minimumCompressionSize: 1024  # Enable compression for responses > 1KB
+    binaryMediaTypes:
+      - 'application/pdf'
+      - 'image/*'
+      - 'video/*'
+    apiKeys:
+      - name: ${self:service}-${self:provider.stage}-admin-key
+        description: API key for admin operations
+    usagePlan:
+      quota:
+        limit: ${self:custom.apiQuota.${self:provider.stage}, 10000}
+        period: MONTH
+      throttle:
+        rateLimit: ${self:custom.apiRateLimit.${self:provider.stage}, 100}
+        burstLimit: ${self:custom.apiBurstLimit.${self:provider.stage}, 200}
+
+  # X-Ray tracing
+  tracing:
+    lambda: ${self:custom.enableTracing.${self:provider.stage}, false}
+    apiGateway: ${self:custom.enableTracing.${self:provider.stage}, false}
+
+# ========================================
+# Plugins
+# ========================================
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline
+  - serverless-webpack
+  - serverless-plugin-warmup
+  - serverless-plugin-canary-deployments
+  - serverless-plugin-aws-alerts
+  - serverless-prune-plugin
+  - serverless-domain-manager
+  - serverless-plugin-split-stacks
+
+# ========================================
+# Custom Configuration
+# ========================================
+custom:
+  # Version tracking
+  version: ${env:BUILD_VERSION, '1.0.0'}
+
+  # Stage-specific memory configurations
+  memorySize:
+    dev: 256
+    staging: 512
+    prod: 1024
+
+  # Stage-specific timeout configurations
+  timeout:
+    dev: 30
+    staging: 30
+    prod: 30
+
+  # Stage-specific concurrency configurations
+  reservedConcurrency:
+    dev: 5
+    staging: 20
+    prod: 100
+
+  # Stage-specific log levels
+  logLevel:
+    dev: DEBUG
+    staging: INFO
+    prod: WARN
+
+  # API Gateway configurations
+  apiGatewayLogLevel:
+    dev: INFO
+    staging: INFO
+    prod: ERROR
+
+  apiGatewayFullExecution:
+    dev: true
+    staging: false
+    prod: false
+
+  # Rate limiting configurations
+  apiQuota:
+    dev: 1000
+    staging: 5000
+    prod: 50000
+
+  apiRateLimit:
+    dev: 10
+    staging: 50
+    prod: 1000
+
+  apiBurstLimit:
+    dev: 20
+    staging: 100
+    prod: 2000
+
+  # Cache TTL configurations
+  cacheTtl:
+    dev: 60     # 1 minute
+    staging: 300 # 5 minutes
+    prod: 900   # 15 minutes
+
+  # Database connection pool sizes
+  dbConnectionPoolSize:
+    dev: 5
+    staging: 10
+    prod: 25
+
+  # CORS origins
+  corsOrigins:
+    dev: 'http://localhost:3000'
+    staging: 'https://staging.abhh.com'
+    prod: 'https://portal.abhh.com'
+
+  # Feature flags
+  featureFlags:
+    performanceMonitoring:
+      dev: true
+      staging: true
+      prod: true
+    detailedLogging:
+      dev: true
+      staging: false
+      prod: false
+    rateLimiting:
+      dev: false
+      staging: true
+      prod: true
+
+  # X-Ray tracing
+  enableTracing:
+    dev: false
+    staging: true
+    prod: true
+
+  # VPC configuration (only for staging and prod)
+  vpc:
+    staging:
+      subnetIds:
+        - subnet-12345678
+        - subnet-87654321
+      securityGroupIds:
+        - sg-12345678
+    prod:
+      subnetIds:
+        - subnet-11111111
+        - subnet-22222222
+      securityGroupIds:
+        - sg-11111111
+
+  # Table names with stage prefix
+  tablesNames:
+    jobs: ${self:service}-jobs-${self:provider.stage}
+    applicants: ${self:service}-applicants-${self:provider.stage}
+    applications: ${self:service}-applications-${self:provider.stage}
+    tests: ${self:service}-tests-${self:provider.stage}
+    testSubmissions: ${self:service}-test-submissions-${self:provider.stage}
+    notifications: ${self:service}-notifications-${self:provider.stage}
+
+  # S3 bucket names with stage prefix
+  bucketNames:
+    resumes: ${self:service}-resumes-${self:provider.stage}
+    videos: ${self:service}-videos-${self:provider.stage}
+
+  # External service configuration
+  cognitoUserPoolId: ${env:COGNITO_USER_POOL_ID}
+  cognitoUserPoolWebClientId: ${env:COGNITO_USER_POOL_WEB_CLIENT_ID}
+  jwtSecret: ${env:JWT_SECRET}
+  encryptionKey: ${env:ENCRYPTION_KEY}
+  kmsKeyId: ${env:KMS_KEY_ID}
+  emailFromAddress: ${env:EMAIL_FROM_ADDRESS, 'noreply@abhh.com'}
+
+  # Webpack configuration
+  webpack:
+    webpackConfig: ./webpack.config.js
+    includeModules:
+      forceExclude:
+        - aws-sdk
+    packager: npm
+    excludeFiles: src/**/*.test.ts
+
+  # Serverless Offline configuration
+  serverless-offline:
+    httpPort: 3001
+    lambdaPort: 3002
+    websocketPort: 3003
+    noPrependStageInUrl: true
+    useChildProcesses: true
+
+  # Warmup configuration
+  warmup:
+    enabled: ${self:custom.enableWarmup.${self:provider.stage}, false}
+    events:
+      - schedule: rate(5 minutes)
+    concurrency: 2
+    prewarm: true
+
+  enableWarmup:
+    dev: false
+    staging: true
+    prod: true
+
+  # Canary deployments
+  deploymentSettings:
+    type: ${self:custom.deploymentType.${self:provider.stage}, 'AllAtOnce'}
+    alias: Live
+    preTrafficHook: preTrafficHook
+    postTrafficHook: postTrafficHook
+    alarms:
+      - AliasErrorMetricGreaterThanZeroAlarm
+      - AliasLambdaDurationMetricGreaterThanExpectedAlarm
+
+  deploymentType:
+    dev: AllAtOnce
+    staging: Canary10Percent5Minutes
+    prod: Canary10Percent10Minutes
+
+  # Alerts configuration
+  alerts:
+    stages:
+      - staging
+      - prod
+    topics:
+      alarm:
+        topic: ${self:service}-${self:provider.stage}-alerts
+        notifications:
+          - protocol: email
+            endpoint: ${env:ALERT_EMAIL, 'admin@abhh.com'}
+    alarms:
+      - functionErrors
+      - functionThrottles
+      - functionInvocations
+      - functionDuration
+
+  # Prune configuration
+  prune:
+    automatic: true
+    number: 5  # Keep 5 versions
+
+  # Domain configuration
+  customDomain:
+    domainName: ${self:custom.domainName.${self:provider.stage}}
+    basePath: api
+    stage: ${self:provider.stage}
+    createRoute53Record: true
+    certificateName: ${self:custom.certificateName.${self:provider.stage}}
+
+  domainName:
+    dev: api-dev.abhh.com
+    staging: api-staging.abhh.com
+    prod: api.abhh.com
+
+  certificateName:
+    dev: '*.abhh.com'
+    staging: '*.abhh.com'
+    prod: '*.abhh.com'
+
+  # Split stacks configuration
+  splitStacks:
+    perFunction: false
+    perType: true
+    perGroupFunction: false
+
+# ========================================
+# Functions Configuration
+# ========================================
+functions:
+  # ========================================
+  # Authentication Functions
+  # ========================================
+  enhancedLogin:
+    handler: src/functions/auth/enhanced-login.handler
+    description: Enhanced login with security and performance optimizations
+    memorySize: ${self:custom.memorySize.${self:provider.stage}}
+    timeout: 30
+    reservedConcurrency: ${self:custom.authConcurrency.${self:provider.stage}, 20}
+    environment:
+      FUNCTION_NAME: enhancedLogin
+    events:
+      - http:
+          path: /auth/login
+          method: post
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+            headers:
+              - Content-Type
+              - Authorization
+              - X-Amz-Date
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: true
+          request:
+            schemas:
+              application/json: ${file(schemas/login-request.json)}
+          documentation:
+            summary: User authentication
+            description: Authenticate user with email and password
+            tags:
+              - Authentication
+            requestBody:
+              description: Login credentials
+            requestModels:
+              application/json: LoginRequest
+    warmup:
+      enabled: ${self:custom.enableWarmup.${self:provider.stage}}
+    alarms:
+      - name: enhancedLoginErrors
+        metric: errors
+        threshold: 10
+        comparisonOperator: GreaterThanThreshold
+      - name: enhancedLoginDuration
+        metric: duration
+        threshold: 5000
+        comparisonOperator: GreaterThanThreshold
+
+  register:
+    handler: src/functions/auth/register.handler
+    description: User registration with enhanced validation
+    memorySize: ${self:custom.memorySize.${self:provider.stage}}
+    timeout: 30
+    events:
+      - http:
+          path: /auth/register
+          method: post
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+            headers:
+              - Content-Type
+              - Authorization
+            allowCredentials: true
+
+  verify:
+    handler: src/functions/auth/verify.handler
+    description: Email verification
+    memorySize: 256
+    timeout: 15
+    events:
+      - http:
+          path: /auth/verify
+          method: post
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+
+  # ========================================
+  # Job Management Functions
+  # ========================================
+  createJob:
+    handler: src/functions/jobs/create.handler
+    description: Create new job posting
+    memorySize: ${self:custom.memorySize.${self:provider.stage}}
+    timeout: 30
+    reservedConcurrency: ${self:custom.jobConcurrency.${self:provider.stage}, 10}
+    events:
+      - http:
+          path: /jobs
+          method: post
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          authorizer:
+            name: authorizerFunc
+            type: request
+            identitySource: method.request.header.Authorization
+    warmup:
+      enabled: ${self:custom.enableWarmup.${self:provider.stage}}
+
+  getJobs:
+    handler: src/functions/jobs/list.handler
+    description: List job postings with filtering and pagination
+    memorySize: ${self:custom.memorySize.${self:provider.stage}}
+    timeout: 30
+    provisionnedConcurrency: ${self:custom.jobListConcurrency.${self:provider.stage}, 5}
+    events:
+      - http:
+          path: /jobs
+          method: get
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          caching:
+            enabled: ${self:custom.enableCaching.${self:provider.stage}, false}
+            ttlInSeconds: ${self:custom.cacheTtl.${self:provider.stage}}
+            keyParametersNames:
+              - department
+              - location
+              - type
+              - status
+    warmup:
+      enabled: ${self:custom.enableWarmup.${self:provider.stage}}
+
+  getJob:
+    handler: src/functions/jobs/get.handler
+    description: Get specific job details
+    memorySize: 256
+    timeout: 15
+    events:
+      - http:
+          path: /jobs/{id}
+          method: get
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          request:
+            parameters:
+              paths:
+                id: true
+          caching:
+            enabled: ${self:custom.enableCaching.${self:provider.stage}, false}
+            ttlInSeconds: ${self:custom.cacheTtl.${self:provider.stage}}
+            keyParametersNames:
+              - id
+
+  updateJob:
+    handler: src/functions/jobs/update.handler
+    description: Update job posting
+    memorySize: ${self:custom.memorySize.${self:provider.stage}}
+    timeout: 30
+    events:
+      - http:
+          path: /jobs/{id}
+          method: put
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          authorizer:
+            name: authorizerFunc
+            type: request
+            identitySource: method.request.header.Authorization
+
+  deleteJob:
+    handler: src/functions/jobs/delete.handler
+    description: Delete job posting
+    memorySize: 256
+    timeout: 15
+    events:
+      - http:
+          path: /jobs/{id}
+          method: delete
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          authorizer:
+            name: authorizerFunc
+            type: request
+            identitySource: method.request.header.Authorization
+
+  # ========================================
+  # Application Functions
+  # ========================================
+  createApplication:
+    handler: src/functions/applications/create.handler
+    description: Submit job application
+    memorySize: ${self:custom.memorySize.${self:provider.stage}}
+    timeout: 45
+    events:
+      - http:
+          path: /applications
+          method: post
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          authorizer:
+            name: authorizerFunc
+            type: request
+            identitySource: method.request.header.Authorization
+
+  getApplications:
+    handler: src/functions/applications/list.handler
+    description: List applications with filtering
+    memorySize: ${self:custom.memorySize.${self:provider.stage}}
+    timeout: 30
+    events:
+      - http:
+          path: /applications
+          method: get
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          authorizer:
+            name: authorizerFunc
+            type: request
+            identitySource: method.request.header.Authorization
+
+  getApplication:
+    handler: src/functions/applications/get.handler
+    description: Get specific application details
+    memorySize: 512
+    timeout: 30
+    events:
+      - http:
+          path: /applications/{id}
+          method: get
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          authorizer:
+            name: authorizerFunc
+            type: request
+            identitySource: method.request.header.Authorization
+
+  updateApplicationStage:
+    handler: src/functions/applications/updateStage.handler
+    description: Update application stage
+    memorySize: 512
+    timeout: 30
+    events:
+      - http:
+          path: /applications/{id}/stage
+          method: put
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          authorizer:
+            name: authorizerFunc
+            type: request
+            identitySource: method.request.header.Authorization
+
+  # ========================================
+  # Test Functions
+  # ========================================
+  createTest:
+    handler: src/functions/tests/create.handler
+    description: Create assessment test
+    memorySize: ${self:custom.memorySize.${self:provider.stage}}
+    timeout: 30
+    events:
+      - http:
+          path: /tests
+          method: post
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          authorizer:
+            name: authorizerFunc
+            type: request
+            identitySource: method.request.header.Authorization
+
+  getTest:
+    handler: src/functions/tests/get.handler
+    description: Get test details for applicant
+    memorySize: 512
+    timeout: 30
+    events:
+      - http:
+          path: /tests/{id}
+          method: get
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          authorizer:
+            name: authorizerFunc
+            type: request
+            identitySource: method.request.header.Authorization
+
+  submitTest:
+    handler: src/functions/tests/submit.handler
+    description: Submit test answers
+    memorySize: 1024
+    timeout: 60
+    events:
+      - http:
+          path: /tests/{id}/submit
+          method: post
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          authorizer:
+            name: authorizerFunc
+            type: request
+            identitySource: method.request.header.Authorization
+
+  # ========================================
+  # File Management Functions
+  # ========================================
+  getUploadUrl:
+    handler: src/functions/files/getUploadUrl.handler
+    description: Generate presigned URL for file upload
+    memorySize: 256
+    timeout: 15
+    events:
+      - http:
+          path: /files/upload-url
+          method: post
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          authorizer:
+            name: authorizerFunc
+            type: request
+            identitySource: method.request.header.Authorization
+
+  # ========================================
+  # Notification Functions
+  # ========================================
+  sendNotification:
+    handler: src/functions/notifications/send.handler
+    description: Send notifications to users
+    memorySize: 512
+    timeout: 30
+    events:
+      - http:
+          path: /notifications/send
+          method: post
+          cors:
+            origin: ${self:custom.corsOrigins.${self:provider.stage}}
+          authorizer:
+            name: authorizerFunc
+            type: request
+            identitySource: method.request.header.Authorization
+
+  # ========================================
+  # Utility Functions
+  # ========================================
+  authorizerFunc:
+    handler: src/functions/auth/authorizer.handler
+    description: JWT token authorizer
+    memorySize: 256
+    timeout: 10
+
+  preTrafficHook:
+    handler: src/functions/deployment/preTrafficHook.handler
+    description: Pre-traffic deployment hook
+    memorySize: 256
+    timeout: 60
+
+  postTrafficHook:
+    handler: src/functions/deployment/postTrafficHook.handler
+    description: Post-traffic deployment hook
+    memorySize: 256
+    timeout: 60
+
+  # ========================================
+  # Background Processing Functions
+  # ========================================
+  processVideoUploads:
+    handler: src/functions/background/processVideoUploads.handler
+    description: Process uploaded video files
+    memorySize: 1024
+    timeout: 300
+    events:
+      - s3:
+          bucket: ${self:custom.bucketNames.videos}
+          event: s3:ObjectCreated:*
+          rules:
+            - suffix: .mp4
+            - suffix: .webm
+
+  sendScheduledNotifications:
+    handler: src/functions/background/sendScheduledNotifications.handler
+    description: Send scheduled notifications
+    memorySize: 512
+    timeout: 60
+    events:
+      - schedule:
+          rate: rate(5 minutes)
+          enabled: ${self:custom.enableScheduledJobs.${self:provider.stage}, false}
+
+  # Custom stage-specific configurations
+  authConcurrency:
+    dev: 5
+    staging: 20
+    prod: 50
+
+  jobConcurrency:
+    dev: 3
+    staging: 10
+    prod: 25
+
+  jobListConcurrency:
+    dev: 2
+    staging: 5
+    prod: 10
+
+  enableCaching:
+    dev: false
+    staging: true
+    prod: true
+
+  enableScheduledJobs:
+    dev: false
+    staging: true
+    prod: true
+
+# ========================================
+# Resources Configuration
+# ========================================
+resources:
+  Conditions:
+    IsProduction:
+      Fn::Equals:
+        - ${self:provider.stage}
+        - prod
+
+  Resources:
+    # ========================================
+    # DynamoDB Tables with Optimizations
+    # ========================================
+    JobsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tablesNames.jobs}
+        BillingMode: ${self:custom.dynamoDBBillingMode.${self:provider.stage}, 'PAY_PER_REQUEST'}
+        AttributeDefinitions:
+          - AttributeName: jobId
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: S
+          - AttributeName: department
+            AttributeType: S
+        KeySchema:
+          - AttributeName: jobId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: StatusIndex
+            KeySchema:
+              - AttributeName: status
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              Fn::If:
+                - IsProduction
+                - ReadCapacityUnits: 10
+                  WriteCapacityUnits: 5
+                - Ref: AWS::NoValue
+          - IndexName: DepartmentIndex
+            KeySchema:
+              - AttributeName: department
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              Fn::If:
+                - IsProduction
+                - ReadCapacityUnits: 5
+                  WriteCapacityUnits: 2
+                - Ref: AWS::NoValue
+        StreamSpecification:
+          Fn::If:
+            - IsProduction
+            - StreamViewType: NEW_AND_OLD_IMAGES
+            - Ref: AWS::NoValue
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled:
+            Fn::If:
+              - IsProduction
+              - true
+              - false
+        SSESpecification:
+          SSEEnabled: true
+          KMSMasterKeyId:
+            Fn::If:
+              - IsProduction
+              - ${self:custom.kmsKeyId}
+              - Ref: AWS::NoValue
+        Tags:
+          - Key: Environment
+            Value: ${self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+        ProvisionedThroughput:
+          Fn::If:
+            - IsProduction
+            - ReadCapacityUnits: 20
+              WriteCapacityUnits: 10
+            - Ref: AWS::NoValue
+
+    # Additional tables would follow the same pattern...
+
+    # ========================================
+    # S3 Buckets with Security and Performance
+    # ========================================
+    ResumesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucketNames.resumes}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+                KMSMasterKeyID:
+                  Fn::If:
+                    - IsProduction
+                    - ${self:custom.kmsKeyId}
+                    - Ref: AWS::NoValue
+        VersioningConfiguration:
+          Status: Enabled
+        LifecycleConfiguration:
+          Rules:
+            - Id: DeleteIncompleteMultipartUploads
+              Status: Enabled
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+            - Id: DeleteOldVersions
+              Status: Enabled
+              NoncurrentVersionExpirationInDays: 30
+            - Id: TransitionToIA
+              Status: Enabled
+              Transition:
+                StorageClass: STANDARD_IA
+                TransitionInDays: 30
+            - Id: TransitionToGlacier
+              Status: Enabled
+              Transition:
+                StorageClass: GLACIER
+                TransitionInDays: 90
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+                - DELETE
+              AllowedOrigins:
+                - ${self:custom.corsOrigins.${self:provider.stage}}
+              MaxAge: 3000
+        NotificationConfiguration:
+          CloudWatchConfigurations:
+            - Event: s3:ObjectCreated:*
+              CloudWatchConfiguration:
+                LogGroupName: !Ref S3AccessLogGroup
+        Tags:
+          - Key: Environment
+            Value: ${self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+
+    # ========================================
+    # CloudWatch Configuration
+    # ========================================
+    S3AccessLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/s3/${self:custom.bucketNames.resumes}/access
+        RetentionInDays: ${self:custom.logRetentionDays.${self:provider.stage}, 14}
+
+    ApiGatewayLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/apigateway/${self:service}-${self:provider.stage}
+        RetentionInDays: ${self:custom.logRetentionDays.${self:provider.stage}, 14}
+
+    # ========================================
+    # SNS Topics for Notifications
+    # ========================================
+    AlertsTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ${self:service}-${self:provider.stage}-alerts
+        DisplayName: ${self:service} ${self:provider.stage} Alerts
+        KmsMasterKeyId:
+          Fn::If:
+            - IsProduction
+            - ${self:custom.kmsKeyId}
+            - Ref: AWS::NoValue
+
+    # ========================================
+    # CloudWatch Alarms
+    # ========================================
+    HighErrorRateAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${self:provider.stage}-high-error-rate
+        AlarmDescription: High error rate detected
+        MetricName: Errors
+        Namespace: AWS/Lambda
+        Statistic: Sum
+        Period: 300
+        EvaluationPeriods: 2
+        Threshold: 10
+        ComparisonOperator: GreaterThanThreshold
+        Dimensions:
+          - Name: FunctionName
+            Value: ${self:service}-${self:provider.stage}-enhancedLogin
+        AlarmActions:
+          - Ref: AlertsTopic
+
+  # Custom configurations for different stages
+  logRetentionDays:
+    dev: 7
+    staging: 14
+    prod: 30
+
+  dynamoDBBillingMode:
+    dev: PAY_PER_REQUEST
+    staging: PAY_PER_REQUEST
+    prod: PROVISIONED
+
+  Outputs:
+    ApiGatewayRestApiId:
+      Value:
+        Ref: ApiGatewayRestApi
+      Export:
+        Name: ${self:service}-${self:provider.stage}-ApiGatewayRestApiId
+
+    ApiGatewayRestApiRootResourceId:
+      Value:
+        Fn::GetAtt:
+          - ApiGatewayRestApi
+          - RootResourceId
+      Export:
+        Name: ${self:service}-${self:provider.stage}-ApiGatewayRestApiRootResourceId
+
+    JobsTableName:
+      Value:
+        Ref: JobsTable
+      Export:
+        Name: ${self:service}-${self:provider.stage}-JobsTableName
+
+    ResumesBucketName:
+      Value:
+        Ref: ResumesBucket
+      Export:
+        Name: ${self:service}-${self:provider.stage}-ResumesBucketName

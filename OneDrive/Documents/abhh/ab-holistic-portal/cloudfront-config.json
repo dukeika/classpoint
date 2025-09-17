@@ -1,0 +1,35 @@
+{
+  "CallerReference": "ab-holistic-portal-1758034566",
+  "Comment": "AB Holistic Interview Portal - CloudFront Distribution",
+  "DefaultRootObject": "index.html",
+  "Origins": {
+    "Quantity": 1,
+    "Items": [
+      {
+        "Id": "S3-abhh-interview-portal-1758034566",
+        "DomainName": "abhh-interview-portal-1758034566.s3.us-west-1.amazonaws.com",
+        "S3OriginConfig": {
+          "OriginAccessIdentity": ""
+        }
+      }
+    ]
+  },
+  "DefaultCacheBehavior": {
+    "TargetOriginId": "S3-abhh-interview-portal-1758034566",
+    "ViewerProtocolPolicy": "redirect-to-https",
+    "TrustedSigners": {
+      "Enabled": false,
+      "Quantity": 0
+    },
+    "ForwardedValues": {
+      "QueryString": false,
+      "Cookies": {
+        "Forward": "none"
+      }
+    },
+    "MinTTL": 0,
+    "Compress": true
+  },
+  "Enabled": true,
+  "PriceClass": "PriceClass_100"
+}
