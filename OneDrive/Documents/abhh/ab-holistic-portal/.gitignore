@@ -21,8 +21,8 @@ build/
 # AWS
 .amplify/
 amplify-tmp/
-.serverless/
-*.zip
+# .serverless/ - commenting out to include deployment files
+# *.zip - commenting out to include deployment artifacts
 
 # IDE
 .vscode/
