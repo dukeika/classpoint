@@ -21,6 +21,8 @@ build/
 # AWS
 .amplify/
 amplify-tmp/
+.serverless/
+*.zip
 
 # IDE
 .vscode/
