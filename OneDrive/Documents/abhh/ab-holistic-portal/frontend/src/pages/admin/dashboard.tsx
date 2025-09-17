@@ -27,7 +27,7 @@ interface DashboardStats {
 }
 
 const AdminDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     jobs: { total: 0, active: 0, draft: 0 },
     applications: { total: 0, pending: 0, inProgress: 0, completed: 0 },
@@ -195,7 +195,7 @@ const AdminDashboard: React.FC = () => {
   if (isLoading) {
     return (
       <ProtectedRoute requireRole="admin">
-        <Layout user={user}>
+        <Layout user={user} onLogout={logout}>
           <div className="flex items-center justify-center min-h-96">
             <div className="text-center">
               <div className="spinner h-12 w-12 mx-auto"></div>
@@ -214,7 +214,7 @@ const AdminDashboard: React.FC = () => {
       </Head>
 
       <ProtectedRoute requireRole="admin">
-        <Layout user={user}>
+        <Layout user={user} onLogout={logout}>
           <div className="space-y-8">
             {/* Header */}
             <div>

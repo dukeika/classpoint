@@ -1,4 +1,5 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
+import { SecurityHeaders } from './security';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -10,19 +11,29 @@ export interface ApiResponse<T = unknown> {
   };
   message?: string;
   timestamp: string;
+  requestId?: string;
 }
 
 export const createResponse = <T>(
   statusCode: number,
   body: ApiResponse<T>,
-  headers: Record<string, string> = {}
+  additionalHeaders: Record<string, string> = {},
+  includeSecurityHeaders: boolean = true
 ): APIGatewayProxyResult => {
-  const defaultHeaders = {
+  const corsHeaders = {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    ...headers,
+    'Access-Control-Allow-Credentials': 'true',
+  };
+
+  const securityHeaders = includeSecurityHeaders ? SecurityHeaders.getSecurityHeaders() : {};
+
+  const defaultHeaders = {
+    ...corsHeaders,
+    ...securityHeaders,
+    ...additionalHeaders,
   };
 
   return {

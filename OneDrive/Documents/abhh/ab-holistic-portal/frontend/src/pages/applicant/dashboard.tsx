@@ -10,7 +10,7 @@ import { Application, ApplicationStage } from '../../types/application';
 import { Job } from '../../types/job';
 
 const ApplicantDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
   const [applications, setApplications] = useState<(Application & { job: Job })[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -238,7 +238,7 @@ const ApplicantDashboard: React.FC = () => {
       </Head>
 
       <ProtectedRoute requireRole="applicant">
-        <Layout user={user}>
+        <Layout user={user} onLogout={logout}>
           <div className="space-y-8">
             {/* Success Message */}
             {showSuccessMessage && (

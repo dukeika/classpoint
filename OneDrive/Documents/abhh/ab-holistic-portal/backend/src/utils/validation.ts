@@ -155,8 +155,8 @@ export const notificationSchemas = {
   }),
 };
 
-// Validation helper functions
-export const validateSchema = (schema: Joi.ObjectSchema, data: unknown) => {
+// Validation helper functions with improved typing
+export const validateSchema = <T>(schema: Joi.ObjectSchema<T>, data: unknown): T => {
   const { error, value } = schema.validate(data, {
     stripUnknown: true,
     abortEarly: false,
@@ -171,7 +171,7 @@ export const validateSchema = (schema: Joi.ObjectSchema, data: unknown) => {
     throw new ValidationError('Validation failed', details);
   }
 
-  return value;
+  return value as T;
 };
 
 export class ValidationError extends Error {
