@@ -14,16 +14,9 @@
       "environment": {
         "STAGE": "dev",
         "REGION": "us-west-1",
-        "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-        "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-        "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-        "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-        "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-        "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-        "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-        "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-        "USER_POOL_ID": "your-user-pool-id",
-        "JWT_SECRET": "your-jwt-secret-key"
+        "USER_POOL_ID": "us-west-1_n0Ij4uUuB",
+        "USER_POOL_WEB_CLIENT_ID": "742a4q83obkfejdod7d1retvep",
+        "JWT_SECRET": "your-jwt-secret-key-change-in-production"
       },
       "iam": {
         "role": {
@@ -31,48 +24,13 @@
             {
               "Effect": "Allow",
               "Action": [
-                "dynamodb:Query",
-                "dynamodb:Scan",
-                "dynamodb:GetItem",
-                "dynamodb:PutItem",
-                "dynamodb:UpdateItem",
-                "dynamodb:DeleteItem",
-                "dynamodb:BatchGetItem",
-                "dynamodb:BatchWriteItem"
-              ],
-              "Resource": [
-                "arn:aws:dynamodb:us-west-1:*:table/ab-holistic-interview-portal-jobs-dev",
-                "arn:aws:dynamodb:us-west-1:*:table/ab-holistic-interview-portal-applicants-dev",
-                "arn:aws:dynamodb:us-west-1:*:table/ab-holistic-interview-portal-applications-dev",
-                "arn:aws:dynamodb:us-west-1:*:table/ab-holistic-interview-portal-tests-dev",
-                "arn:aws:dynamodb:us-west-1:*:table/ab-holistic-interview-portal-test-submissions-dev",
-                "arn:aws:dynamodb:us-west-1:*:table/ab-holistic-interview-portal-notifications-dev",
-                "arn:aws:dynamodb:us-west-1:*:table/ab-holistic-interview-portal-jobs-dev/index/*",
-                "arn:aws:dynamodb:us-west-1:*:table/ab-holistic-interview-portal-applications-dev/index/*"
-              ]
-            },
-            {
-              "Effect": "Allow",
-              "Action": [
-                "s3:GetObject",
-                "s3:PutObject",
-                "s3:DeleteObject",
-                "s3:GetObjectVersion"
-              ],
-              "Resource": [
-                "arn:aws:s3:::ab-holistic-interview-portal-resumes-dev/*",
-                "arn:aws:s3:::ab-holistic-interview-portal-videos-dev/*"
-              ]
-            },
-            {
-              "Effect": "Allow",
-              "Action": [
                 "cognito-idp:AdminGetUser",
                 "cognito-idp:AdminUpdateUserAttributes",
                 "cognito-idp:AdminSetUserPassword",
-                "cognito-idp:ListUsers"
+                "cognito-idp:ListUsers",
+                "cognito-idp:InitiateAuth"
               ],
-              "Resource": "arn:aws:cognito-idp:us-west-1:*:userpool/your-user-pool-id"
+              "Resource": "*"
             },
             {
               "Effect": "Allow",
@@ -85,7 +43,10 @@
             {
               "Effect": "Allow",
               "Action": [
-                "sns:Publish"
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject",
+                "s3:GetSignedUrl"
               ],
               "Resource": "*"
             }
@@ -214,64 +175,10 @@
               "LogGroupName": "/aws/lambda/ab-holistic-interview-portal-dev-deleteJob"
             }
           },
-          "CreateApplicationLogGroup": {
-            "Type": "AWS::Logs::LogGroup",
-            "Properties": {
-              "LogGroupName": "/aws/lambda/ab-holistic-interview-portal-dev-createApplication"
-            }
-          },
-          "GetApplicationsLogGroup": {
-            "Type": "AWS::Logs::LogGroup",
-            "Properties": {
-              "LogGroupName": "/aws/lambda/ab-holistic-interview-portal-dev-getApplications"
-            }
-          },
-          "GetApplicationLogGroup": {
-            "Type": "AWS::Logs::LogGroup",
-            "Properties": {
-              "LogGroupName": "/aws/lambda/ab-holistic-interview-portal-dev-getApplication"
-            }
-          },
-          "UpdateApplicationStageLogGroup": {
-            "Type": "AWS::Logs::LogGroup",
-            "Properties": {
-              "LogGroupName": "/aws/lambda/ab-holistic-interview-portal-dev-updateApplicationStage"
-            }
-          },
-          "CreateTestLogGroup": {
-            "Type": "AWS::Logs::LogGroup",
-            "Properties": {
-              "LogGroupName": "/aws/lambda/ab-holistic-interview-portal-dev-createTest"
-            }
-          },
-          "GetTestLogGroup": {
-            "Type": "AWS::Logs::LogGroup",
-            "Properties": {
-              "LogGroupName": "/aws/lambda/ab-holistic-interview-portal-dev-getTest"
-            }
-          },
-          "SubmitTestLogGroup": {
-            "Type": "AWS::Logs::LogGroup",
-            "Properties": {
-              "LogGroupName": "/aws/lambda/ab-holistic-interview-portal-dev-submitTest"
-            }
-          },
           "GetUploadUrlLogGroup": {
             "Type": "AWS::Logs::LogGroup",
             "Properties": {
               "LogGroupName": "/aws/lambda/ab-holistic-interview-portal-dev-getUploadUrl"
-            }
-          },
-          "SendNotificationLogGroup": {
-            "Type": "AWS::Logs::LogGroup",
-            "Properties": {
-              "LogGroupName": "/aws/lambda/ab-holistic-interview-portal-dev-sendNotification"
-            }
-          },
-          "AuthorizerFuncLogGroup": {
-            "Type": "AWS::Logs::LogGroup",
-            "Properties": {
-              "LogGroupName": "/aws/lambda/ab-holistic-interview-portal-dev-authorizerFunc"
             }
           },
           "IamRoleLambdaExecution": {
@@ -340,12 +247,6 @@
                       },
                       {
                         "$ref": "$[\"service\"][\"provider\"][\"iam\"][\"role\"][\"statements\"][2]"
-                      },
-                      {
-                        "$ref": "$[\"service\"][\"provider\"][\"iam\"][\"role\"][\"statements\"][3]"
-                      },
-                      {
-                        "$ref": "$[\"service\"][\"provider\"][\"iam\"][\"role\"][\"statements\"][4]"
                       }
                     ]
                   }
@@ -374,7 +275,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
+                "S3Key": "serverless/ab-holistic-interview-portal/dev/1758104280004-2025-09-17T10:18:00.004Z/ab-holistic-interview-portal.zip"
               },
               "Handler": "src/functions/auth/login.handler",
               "Runtime": "nodejs18.x",
@@ -385,16 +286,9 @@
                 "Variables": {
                   "STAGE": "dev",
                   "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
+                  "USER_POOL_ID": "us-west-1_n0Ij4uUuB",
+                  "USER_POOL_WEB_CLIENT_ID": "742a4q83obkfejdod7d1retvep",
+                  "JWT_SECRET": "your-jwt-secret-key-change-in-production"
                 }
               },
               "Role": {
@@ -415,7 +309,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
+                "S3Key": "serverless/ab-holistic-interview-portal/dev/1758104280004-2025-09-17T10:18:00.004Z/ab-holistic-interview-portal.zip"
               },
               "Handler": "src/functions/auth/register.handler",
               "Runtime": "nodejs18.x",
@@ -426,16 +320,9 @@
                 "Variables": {
                   "STAGE": "dev",
                   "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
+                  "USER_POOL_ID": "us-west-1_n0Ij4uUuB",
+                  "USER_POOL_WEB_CLIENT_ID": "742a4q83obkfejdod7d1retvep",
+                  "JWT_SECRET": "your-jwt-secret-key-change-in-production"
                 }
               },
               "Role": {
@@ -456,7 +343,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
+                "S3Key": "serverless/ab-holistic-interview-portal/dev/1758104280004-2025-09-17T10:18:00.004Z/ab-holistic-interview-portal.zip"
               },
               "Handler": "src/functions/auth/verify.handler",
               "Runtime": "nodejs18.x",
@@ -467,16 +354,9 @@
                 "Variables": {
                   "STAGE": "dev",
                   "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
+                  "USER_POOL_ID": "us-west-1_n0Ij4uUuB",
+                  "USER_POOL_WEB_CLIENT_ID": "742a4q83obkfejdod7d1retvep",
+                  "JWT_SECRET": "your-jwt-secret-key-change-in-production"
                 }
               },
               "Role": {
@@ -497,7 +377,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
+                "S3Key": "serverless/ab-holistic-interview-portal/dev/1758104280004-2025-09-17T10:18:00.004Z/ab-holistic-interview-portal.zip"
               },
               "Handler": "src/functions/jobs/create.handler",
               "Runtime": "nodejs18.x",
@@ -508,16 +388,9 @@
                 "Variables": {
                   "STAGE": "dev",
                   "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
+                  "USER_POOL_ID": "us-west-1_n0Ij4uUuB",
+                  "USER_POOL_WEB_CLIENT_ID": "742a4q83obkfejdod7d1retvep",
+                  "JWT_SECRET": "your-jwt-secret-key-change-in-production"
                 }
               },
               "Role": {
@@ -538,7 +411,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
+                "S3Key": "serverless/ab-holistic-interview-portal/dev/1758104280004-2025-09-17T10:18:00.004Z/ab-holistic-interview-portal.zip"
               },
               "Handler": "src/functions/jobs/list.handler",
               "Runtime": "nodejs18.x",
@@ -549,16 +422,9 @@
                 "Variables": {
                   "STAGE": "dev",
                   "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
+                  "USER_POOL_ID": "us-west-1_n0Ij4uUuB",
+                  "USER_POOL_WEB_CLIENT_ID": "742a4q83obkfejdod7d1retvep",
+                  "JWT_SECRET": "your-jwt-secret-key-change-in-production"
                 }
               },
               "Role": {
@@ -579,7 +445,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
+                "S3Key": "serverless/ab-holistic-interview-portal/dev/1758104280004-2025-09-17T10:18:00.004Z/ab-holistic-interview-portal.zip"
               },
               "Handler": "src/functions/jobs/get.handler",
               "Runtime": "nodejs18.x",
@@ -590,16 +456,9 @@
                 "Variables": {
                   "STAGE": "dev",
                   "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
+                  "USER_POOL_ID": "us-west-1_n0Ij4uUuB",
+                  "USER_POOL_WEB_CLIENT_ID": "742a4q83obkfejdod7d1retvep",
+                  "JWT_SECRET": "your-jwt-secret-key-change-in-production"
                 }
               },
               "Role": {
@@ -620,7 +479,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
+                "S3Key": "serverless/ab-holistic-interview-portal/dev/1758104280004-2025-09-17T10:18:00.004Z/ab-holistic-interview-portal.zip"
               },
               "Handler": "src/functions/jobs/update.handler",
               "Runtime": "nodejs18.x",
@@ -631,16 +490,9 @@
                 "Variables": {
                   "STAGE": "dev",
                   "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
+                  "USER_POOL_ID": "us-west-1_n0Ij4uUuB",
+                  "USER_POOL_WEB_CLIENT_ID": "742a4q83obkfejdod7d1retvep",
+                  "JWT_SECRET": "your-jwt-secret-key-change-in-production"
                 }
               },
               "Role": {
@@ -661,7 +513,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
+                "S3Key": "serverless/ab-holistic-interview-portal/dev/1758104280004-2025-09-17T10:18:00.004Z/ab-holistic-interview-portal.zip"
               },
               "Handler": "src/functions/jobs/delete.handler",
               "Runtime": "nodejs18.x",
@@ -672,16 +524,9 @@
                 "Variables": {
                   "STAGE": "dev",
                   "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
+                  "USER_POOL_ID": "us-west-1_n0Ij4uUuB",
+                  "USER_POOL_WEB_CLIENT_ID": "742a4q83obkfejdod7d1retvep",
+                  "JWT_SECRET": "your-jwt-secret-key-change-in-production"
                 }
               },
               "Role": {
@@ -695,293 +540,6 @@
               "DeleteJobLogGroup"
             ]
           },
-          "CreateApplicationLambdaFunction": {
-            "Type": "AWS::Lambda::Function",
-            "Properties": {
-              "Code": {
-                "S3Bucket": {
-                  "Ref": "ServerlessDeploymentBucket"
-                },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
-              },
-              "Handler": "src/functions/applications/create.handler",
-              "Runtime": "nodejs18.x",
-              "FunctionName": "ab-holistic-interview-portal-dev-createApplication",
-              "MemorySize": 256,
-              "Timeout": 30,
-              "Environment": {
-                "Variables": {
-                  "STAGE": "dev",
-                  "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
-                }
-              },
-              "Role": {
-                "Fn::GetAtt": [
-                  "IamRoleLambdaExecution",
-                  "Arn"
-                ]
-              }
-            },
-            "DependsOn": [
-              "CreateApplicationLogGroup"
-            ]
-          },
-          "GetApplicationsLambdaFunction": {
-            "Type": "AWS::Lambda::Function",
-            "Properties": {
-              "Code": {
-                "S3Bucket": {
-                  "Ref": "ServerlessDeploymentBucket"
-                },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
-              },
-              "Handler": "src/functions/applications/list.handler",
-              "Runtime": "nodejs18.x",
-              "FunctionName": "ab-holistic-interview-portal-dev-getApplications",
-              "MemorySize": 256,
-              "Timeout": 30,
-              "Environment": {
-                "Variables": {
-                  "STAGE": "dev",
-                  "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
-                }
-              },
-              "Role": {
-                "Fn::GetAtt": [
-                  "IamRoleLambdaExecution",
-                  "Arn"
-                ]
-              }
-            },
-            "DependsOn": [
-              "GetApplicationsLogGroup"
-            ]
-          },
-          "GetApplicationLambdaFunction": {
-            "Type": "AWS::Lambda::Function",
-            "Properties": {
-              "Code": {
-                "S3Bucket": {
-                  "Ref": "ServerlessDeploymentBucket"
-                },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
-              },
-              "Handler": "src/functions/applications/get.handler",
-              "Runtime": "nodejs18.x",
-              "FunctionName": "ab-holistic-interview-portal-dev-getApplication",
-              "MemorySize": 256,
-              "Timeout": 30,
-              "Environment": {
-                "Variables": {
-                  "STAGE": "dev",
-                  "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
-                }
-              },
-              "Role": {
-                "Fn::GetAtt": [
-                  "IamRoleLambdaExecution",
-                  "Arn"
-                ]
-              }
-            },
-            "DependsOn": [
-              "GetApplicationLogGroup"
-            ]
-          },
-          "UpdateApplicationStageLambdaFunction": {
-            "Type": "AWS::Lambda::Function",
-            "Properties": {
-              "Code": {
-                "S3Bucket": {
-                  "Ref": "ServerlessDeploymentBucket"
-                },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
-              },
-              "Handler": "src/functions/applications/updateStage.handler",
-              "Runtime": "nodejs18.x",
-              "FunctionName": "ab-holistic-interview-portal-dev-updateApplicationStage",
-              "MemorySize": 256,
-              "Timeout": 30,
-              "Environment": {
-                "Variables": {
-                  "STAGE": "dev",
-                  "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
-                }
-              },
-              "Role": {
-                "Fn::GetAtt": [
-                  "IamRoleLambdaExecution",
-                  "Arn"
-                ]
-              }
-            },
-            "DependsOn": [
-              "UpdateApplicationStageLogGroup"
-            ]
-          },
-          "CreateTestLambdaFunction": {
-            "Type": "AWS::Lambda::Function",
-            "Properties": {
-              "Code": {
-                "S3Bucket": {
-                  "Ref": "ServerlessDeploymentBucket"
-                },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
-              },
-              "Handler": "src/functions/tests/create.handler",
-              "Runtime": "nodejs18.x",
-              "FunctionName": "ab-holistic-interview-portal-dev-createTest",
-              "MemorySize": 256,
-              "Timeout": 30,
-              "Environment": {
-                "Variables": {
-                  "STAGE": "dev",
-                  "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
-                }
-              },
-              "Role": {
-                "Fn::GetAtt": [
-                  "IamRoleLambdaExecution",
-                  "Arn"
-                ]
-              }
-            },
-            "DependsOn": [
-              "CreateTestLogGroup"
-            ]
-          },
-          "GetTestLambdaFunction": {
-            "Type": "AWS::Lambda::Function",
-            "Properties": {
-              "Code": {
-                "S3Bucket": {
-                  "Ref": "ServerlessDeploymentBucket"
-                },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
-              },
-              "Handler": "src/functions/tests/get.handler",
-              "Runtime": "nodejs18.x",
-              "FunctionName": "ab-holistic-interview-portal-dev-getTest",
-              "MemorySize": 256,
-              "Timeout": 30,
-              "Environment": {
-                "Variables": {
-                  "STAGE": "dev",
-                  "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
-                }
-              },
-              "Role": {
-                "Fn::GetAtt": [
-                  "IamRoleLambdaExecution",
-                  "Arn"
-                ]
-              }
-            },
-            "DependsOn": [
-              "GetTestLogGroup"
-            ]
-          },
-          "SubmitTestLambdaFunction": {
-            "Type": "AWS::Lambda::Function",
-            "Properties": {
-              "Code": {
-                "S3Bucket": {
-                  "Ref": "ServerlessDeploymentBucket"
-                },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
-              },
-              "Handler": "src/functions/tests/submit.handler",
-              "Runtime": "nodejs18.x",
-              "FunctionName": "ab-holistic-interview-portal-dev-submitTest",
-              "MemorySize": 256,
-              "Timeout": 30,
-              "Environment": {
-                "Variables": {
-                  "STAGE": "dev",
-                  "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
-                }
-              },
-              "Role": {
-                "Fn::GetAtt": [
-                  "IamRoleLambdaExecution",
-                  "Arn"
-                ]
-              }
-            },
-            "DependsOn": [
-              "SubmitTestLogGroup"
-            ]
-          },
           "GetUploadUrlLambdaFunction": {
             "Type": "AWS::Lambda::Function",
             "Properties": {
@@ -989,7 +547,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
+                "S3Key": "serverless/ab-holistic-interview-portal/dev/1758104280004-2025-09-17T10:18:00.004Z/ab-holistic-interview-portal.zip"
               },
               "Handler": "src/functions/files/getUploadUrl.handler",
               "Runtime": "nodejs18.x",
@@ -1000,16 +558,9 @@
                 "Variables": {
                   "STAGE": "dev",
                   "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
+                  "USER_POOL_ID": "us-west-1_n0Ij4uUuB",
+                  "USER_POOL_WEB_CLIENT_ID": "742a4q83obkfejdod7d1retvep",
+                  "JWT_SECRET": "your-jwt-secret-key-change-in-production"
                 }
               },
               "Role": {
@@ -1023,266 +574,94 @@
               "GetUploadUrlLogGroup"
             ]
           },
-          "SendNotificationLambdaFunction": {
-            "Type": "AWS::Lambda::Function",
-            "Properties": {
-              "Code": {
-                "S3Bucket": {
-                  "Ref": "ServerlessDeploymentBucket"
-                },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
-              },
-              "Handler": "src/functions/notifications/send.handler",
-              "Runtime": "nodejs18.x",
-              "FunctionName": "ab-holistic-interview-portal-dev-sendNotification",
-              "MemorySize": 256,
-              "Timeout": 30,
-              "Environment": {
-                "Variables": {
-                  "STAGE": "dev",
-                  "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
-                }
-              },
-              "Role": {
-                "Fn::GetAtt": [
-                  "IamRoleLambdaExecution",
-                  "Arn"
-                ]
-              }
-            },
-            "DependsOn": [
-              "SendNotificationLogGroup"
-            ]
-          },
-          "AuthorizerFuncLambdaFunction": {
-            "Type": "AWS::Lambda::Function",
-            "Properties": {
-              "Code": {
-                "S3Bucket": {
-                  "Ref": "ServerlessDeploymentBucket"
-                },
-                "S3Key": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z/ab-holistic-interview-portal.zip"
-              },
-              "Handler": "src/functions/auth/authorizer.handler",
-              "Runtime": "nodejs18.x",
-              "FunctionName": "ab-holistic-interview-portal-dev-authorizerFunc",
-              "MemorySize": 256,
-              "Timeout": 30,
-              "Environment": {
-                "Variables": {
-                  "STAGE": "dev",
-                  "REGION": "us-west-1",
-                  "JOBS_TABLE": "ab-holistic-interview-portal-jobs-dev",
-                  "APPLICANTS_TABLE": "ab-holistic-interview-portal-applicants-dev",
-                  "APPLICATIONS_TABLE": "ab-holistic-interview-portal-applications-dev",
-                  "TESTS_TABLE": "ab-holistic-interview-portal-tests-dev",
-                  "TEST_SUBMISSIONS_TABLE": "ab-holistic-interview-portal-test-submissions-dev",
-                  "NOTIFICATIONS_TABLE": "ab-holistic-interview-portal-notifications-dev",
-                  "S3_BUCKET_RESUMES": "ab-holistic-interview-portal-resumes-dev",
-                  "S3_BUCKET_VIDEOS": "ab-holistic-interview-portal-videos-dev",
-                  "USER_POOL_ID": "your-user-pool-id",
-                  "JWT_SECRET": "your-jwt-secret-key"
-                }
-              },
-              "Role": {
-                "Fn::GetAtt": [
-                  "IamRoleLambdaExecution",
-                  "Arn"
-                ]
-              }
-            },
-            "DependsOn": [
-              "AuthorizerFuncLogGroup"
-            ]
-          },
-          "LoginLambdaVersionJ5punDtrIolW1xBsTVW1WJEs6IuFS0HOU1MT6P0G8": {
+          "LoginLambdaVersioncQFgFQBvyfZH2K86MaOg34KsqivGqnvNszHxwyBmPcE": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "LoginLambdaFunction"
               },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
+              "CodeSha256": "Vdp7ESoGxtQ+SAWv3Akv+CGStqGlq4XQBMBxFHfuEZg="
             }
           },
-          "RegisterLambdaVersionJoWwdo64bOQGkIvUL7LmbHy6TQAu051lxOOv7GqZQLU": {
+          "RegisterLambdaVersionV8S9w6QZbdISKOpzqwwJcGptxZkMkFx08AKgj0wydUQ": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "RegisterLambdaFunction"
               },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
+              "CodeSha256": "Vdp7ESoGxtQ+SAWv3Akv+CGStqGlq4XQBMBxFHfuEZg="
             }
           },
-          "VerifyLambdaVersionJsClg6u8l01f0zSDTJVybFW4TasjmsqGXLXqMyeDj9k": {
+          "VerifyLambdaVersiongSwurkVL4XuAVdzaf3Em2geu1amWTkXQtYCX6fR5c": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "VerifyLambdaFunction"
               },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
+              "CodeSha256": "Vdp7ESoGxtQ+SAWv3Akv+CGStqGlq4XQBMBxFHfuEZg="
             }
           },
-          "CreateJobLambdaVersionwZVszGqI6VRPtOIePZL9cc5SrpPb5sa2d3Hnvxg": {
+          "CreateJobLambdaVersioneyTuGacn8ubGMrBOy8D25SANqo8q5EIQjl04lXPKkco": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "CreateJobLambdaFunction"
               },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
+              "CodeSha256": "Vdp7ESoGxtQ+SAWv3Akv+CGStqGlq4XQBMBxFHfuEZg="
             }
           },
-          "GetJobsLambdaVersionzw7BLdHwM3aftCGk4M34R51heqbrbRtEnmfLaasE4uo": {
+          "GetJobsLambdaVersion7L9j1yptzHqmATXaprU8I3yDlwP2p6bGc9GQokhDY": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "GetJobsLambdaFunction"
               },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
+              "CodeSha256": "Vdp7ESoGxtQ+SAWv3Akv+CGStqGlq4XQBMBxFHfuEZg="
             }
           },
-          "GetJobLambdaVersionwdsRJudiphYDZbBepn2pHEPagfU02X1yHNcZxlM8": {
+          "GetJobLambdaVersionLGFXF6o9wL0g2f8NFyeohjL8gRTd9Mce6OyggKXXUU": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "GetJobLambdaFunction"
               },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
+              "CodeSha256": "Vdp7ESoGxtQ+SAWv3Akv+CGStqGlq4XQBMBxFHfuEZg="
             }
           },
-          "UpdateJobLambdaVersionvU5g5EyZ2VgJIlLeVVFcCskFqNFWxuc3XvDky3Wxo": {
+          "UpdateJobLambdaVersionxQefoKCLfA4ZFPkICbMXJxUSRBkOqyGP28dvxv8etPE": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "UpdateJobLambdaFunction"
               },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
+              "CodeSha256": "Vdp7ESoGxtQ+SAWv3Akv+CGStqGlq4XQBMBxFHfuEZg="
             }
           },
-          "DeleteJobLambdaVersioneVbpoSXB02BldWxvY25uyxCUwSLPktxYOw9OUd02SXM": {
+          "DeleteJobLambdaVersionfZO1IOoeyP8to2yIBiMn1YVikBuVHpQtxcuuLyKJE": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "DeleteJobLambdaFunction"
               },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
+              "CodeSha256": "Vdp7ESoGxtQ+SAWv3Akv+CGStqGlq4XQBMBxFHfuEZg="
             }
           },
-          "CreateApplicationLambdaVersion6uq7aRKAdftbAYfwyb2ifa2SayjFVAF8oIkB2tC8": {
-            "Type": "AWS::Lambda::Version",
-            "DeletionPolicy": "Retain",
-            "Properties": {
-              "FunctionName": {
-                "Ref": "CreateApplicationLambdaFunction"
-              },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
-            }
-          },
-          "GetApplicationsLambdaVersionMVMR7PHjtiMHJ2Cv7EmdPLjdHyB5DblhpyIOBI8EhbU": {
-            "Type": "AWS::Lambda::Version",
-            "DeletionPolicy": "Retain",
-            "Properties": {
-              "FunctionName": {
-                "Ref": "GetApplicationsLambdaFunction"
-              },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
-            }
-          },
-          "GetApplicationLambdaVersion4vmsxlRJBG6l7N5yQtaWvvRYiGcOQybFnbkZ41zcCE": {
-            "Type": "AWS::Lambda::Version",
-            "DeletionPolicy": "Retain",
-            "Properties": {
-              "FunctionName": {
-                "Ref": "GetApplicationLambdaFunction"
-              },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
-            }
-          },
-          "UpdateApplicationStageLambdaVersionKmrzOEacr57L9sUpOTeaGr8E3ixIQYqO7LTvlbDEL4": {
-            "Type": "AWS::Lambda::Version",
-            "DeletionPolicy": "Retain",
-            "Properties": {
-              "FunctionName": {
-                "Ref": "UpdateApplicationStageLambdaFunction"
-              },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
-            }
-          },
-          "CreateTestLambdaVersionGRQ8E8165qaxzT2jYRZwIGPl0jLrFTdU7xItcBTbk": {
-            "Type": "AWS::Lambda::Version",
-            "DeletionPolicy": "Retain",
-            "Properties": {
-              "FunctionName": {
-                "Ref": "CreateTestLambdaFunction"
-              },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
-            }
-          },
-          "GetTestLambdaVersionNRowznxN8d899BFUltZEZpvYZLkPSTcC1w40XBfYPU": {
-            "Type": "AWS::Lambda::Version",
-            "DeletionPolicy": "Retain",
-            "Properties": {
-              "FunctionName": {
-                "Ref": "GetTestLambdaFunction"
-              },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
-            }
-          },
-          "SubmitTestLambdaVersionsfn2ZwFgJlvSpawVQqBtrM6Y7lBZBPx6FoT6Bf0XXCk": {
-            "Type": "AWS::Lambda::Version",
-            "DeletionPolicy": "Retain",
-            "Properties": {
-              "FunctionName": {
-                "Ref": "SubmitTestLambdaFunction"
-              },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
-            }
-          },
-          "GetUploadUrlLambdaVersion8LGHjFTNZSLI9vMLCDEm2UeWBNJX5Vg7y04leAZsDs": {
+          "GetUploadUrlLambdaVersionaXtaVT2L3FHJHHoU78DUcOv9x3C9OApILLgDVr4sdA": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "GetUploadUrlLambdaFunction"
               },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
-            }
-          },
-          "SendNotificationLambdaVersion3GiDpQPJPACPjXunclJVO2fabpUIQTRuPePede77s": {
-            "Type": "AWS::Lambda::Version",
-            "DeletionPolicy": "Retain",
-            "Properties": {
-              "FunctionName": {
-                "Ref": "SendNotificationLambdaFunction"
-              },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
-            }
-          },
-          "AuthorizerFuncLambdaVersionjYHSpvqOEqB8cN6pt01ew8LJ7MUEdfhLS6YgLQhIYsk": {
-            "Type": "AWS::Lambda::Version",
-            "DeletionPolicy": "Retain",
-            "Properties": {
-              "FunctionName": {
-                "Ref": "AuthorizerFuncLambdaFunction"
-              },
-              "CodeSha256": "wk7ACNwutKM/KUW93dKtxS6BeRr9ODAdWmTH6pj7hGE="
+              "CodeSha256": "Vdp7ESoGxtQ+SAWv3Akv+CGStqGlq4XQBMBxFHfuEZg="
             }
           },
           "ApiGatewayRestApi": {
@@ -1375,84 +754,6 @@
               }
             }
           },
-          "ApiGatewayResourceApplications": {
-            "Type": "AWS::ApiGateway::Resource",
-            "Properties": {
-              "ParentId": {
-                "Fn::GetAtt": [
-                  "ApiGatewayRestApi",
-                  "RootResourceId"
-                ]
-              },
-              "PathPart": "applications",
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayResourceApplicationsIdVar": {
-            "Type": "AWS::ApiGateway::Resource",
-            "Properties": {
-              "ParentId": {
-                "Ref": "ApiGatewayResourceApplications"
-              },
-              "PathPart": "{id}",
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayResourceApplicationsIdVarStage": {
-            "Type": "AWS::ApiGateway::Resource",
-            "Properties": {
-              "ParentId": {
-                "Ref": "ApiGatewayResourceApplicationsIdVar"
-              },
-              "PathPart": "stage",
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayResourceTests": {
-            "Type": "AWS::ApiGateway::Resource",
-            "Properties": {
-              "ParentId": {
-                "Fn::GetAtt": [
-                  "ApiGatewayRestApi",
-                  "RootResourceId"
-                ]
-              },
-              "PathPart": "tests",
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayResourceTestsIdVar": {
-            "Type": "AWS::ApiGateway::Resource",
-            "Properties": {
-              "ParentId": {
-                "Ref": "ApiGatewayResourceTests"
-              },
-              "PathPart": "{id}",
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayResourceTestsIdVarSubmit": {
-            "Type": "AWS::ApiGateway::Resource",
-            "Properties": {
-              "ParentId": {
-                "Ref": "ApiGatewayResourceTestsIdVar"
-              },
-              "PathPart": "submit",
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
           "ApiGatewayResourceFiles": {
             "Type": "AWS::ApiGateway::Resource",
             "Properties": {
@@ -1475,33 +776,6 @@
                 "Ref": "ApiGatewayResourceFiles"
               },
               "PathPart": "upload-url",
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayResourceNotifications": {
-            "Type": "AWS::ApiGateway::Resource",
-            "Properties": {
-              "ParentId": {
-                "Fn::GetAtt": [
-                  "ApiGatewayRestApi",
-                  "RootResourceId"
-                ]
-              },
-              "PathPart": "notifications",
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayResourceNotificationsSend": {
-            "Type": "AWS::ApiGateway::Resource",
-            "Properties": {
-              "ParentId": {
-                "Ref": "ApiGatewayResourceNotifications"
-              },
-              "PathPart": "send",
               "RestApiId": {
                 "Ref": "ApiGatewayRestApi"
               }
@@ -1732,276 +1006,6 @@
               }
             }
           },
-          "ApiGatewayMethodApplicationsOptions": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "AuthorizationType": "NONE",
-              "HttpMethod": "OPTIONS",
-              "MethodResponses": [
-                {
-                  "StatusCode": "200",
-                  "ResponseParameters": {
-                    "method.response.header.Access-Control-Allow-Origin": true,
-                    "method.response.header.Access-Control-Allow-Headers": true,
-                    "method.response.header.Access-Control-Allow-Methods": true
-                  },
-                  "ResponseModels": {}
-                }
-              ],
-              "RequestParameters": {},
-              "Integration": {
-                "Type": "MOCK",
-                "RequestTemplates": {
-                  "application/json": "{statusCode:200}"
-                },
-                "ContentHandling": "CONVERT_TO_TEXT",
-                "IntegrationResponses": [
-                  {
-                    "StatusCode": "200",
-                    "ResponseParameters": {
-                      "method.response.header.Access-Control-Allow-Origin": "'*'",
-                      "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,X-Amzn-Trace-Id'",
-                      "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,GET,POST'"
-                    },
-                    "ResponseTemplates": {
-                      "application/json": ""
-                    }
-                  }
-                ]
-              },
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceApplications"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayMethodApplicationsIdVarOptions": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "AuthorizationType": "NONE",
-              "HttpMethod": "OPTIONS",
-              "MethodResponses": [
-                {
-                  "StatusCode": "200",
-                  "ResponseParameters": {
-                    "method.response.header.Access-Control-Allow-Origin": true,
-                    "method.response.header.Access-Control-Allow-Headers": true,
-                    "method.response.header.Access-Control-Allow-Methods": true
-                  },
-                  "ResponseModels": {}
-                }
-              ],
-              "RequestParameters": {},
-              "Integration": {
-                "Type": "MOCK",
-                "RequestTemplates": {
-                  "application/json": "{statusCode:200}"
-                },
-                "ContentHandling": "CONVERT_TO_TEXT",
-                "IntegrationResponses": [
-                  {
-                    "StatusCode": "200",
-                    "ResponseParameters": {
-                      "method.response.header.Access-Control-Allow-Origin": "'*'",
-                      "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,X-Amzn-Trace-Id'",
-                      "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,GET'"
-                    },
-                    "ResponseTemplates": {
-                      "application/json": ""
-                    }
-                  }
-                ]
-              },
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceApplicationsIdVar"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayMethodApplicationsIdVarStageOptions": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "AuthorizationType": "NONE",
-              "HttpMethod": "OPTIONS",
-              "MethodResponses": [
-                {
-                  "StatusCode": "200",
-                  "ResponseParameters": {
-                    "method.response.header.Access-Control-Allow-Origin": true,
-                    "method.response.header.Access-Control-Allow-Headers": true,
-                    "method.response.header.Access-Control-Allow-Methods": true
-                  },
-                  "ResponseModels": {}
-                }
-              ],
-              "RequestParameters": {},
-              "Integration": {
-                "Type": "MOCK",
-                "RequestTemplates": {
-                  "application/json": "{statusCode:200}"
-                },
-                "ContentHandling": "CONVERT_TO_TEXT",
-                "IntegrationResponses": [
-                  {
-                    "StatusCode": "200",
-                    "ResponseParameters": {
-                      "method.response.header.Access-Control-Allow-Origin": "'*'",
-                      "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,X-Amzn-Trace-Id'",
-                      "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,PUT'"
-                    },
-                    "ResponseTemplates": {
-                      "application/json": ""
-                    }
-                  }
-                ]
-              },
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceApplicationsIdVarStage"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayMethodTestsOptions": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "AuthorizationType": "NONE",
-              "HttpMethod": "OPTIONS",
-              "MethodResponses": [
-                {
-                  "StatusCode": "200",
-                  "ResponseParameters": {
-                    "method.response.header.Access-Control-Allow-Origin": true,
-                    "method.response.header.Access-Control-Allow-Headers": true,
-                    "method.response.header.Access-Control-Allow-Methods": true
-                  },
-                  "ResponseModels": {}
-                }
-              ],
-              "RequestParameters": {},
-              "Integration": {
-                "Type": "MOCK",
-                "RequestTemplates": {
-                  "application/json": "{statusCode:200}"
-                },
-                "ContentHandling": "CONVERT_TO_TEXT",
-                "IntegrationResponses": [
-                  {
-                    "StatusCode": "200",
-                    "ResponseParameters": {
-                      "method.response.header.Access-Control-Allow-Origin": "'*'",
-                      "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,X-Amzn-Trace-Id'",
-                      "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,POST'"
-                    },
-                    "ResponseTemplates": {
-                      "application/json": ""
-                    }
-                  }
-                ]
-              },
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceTests"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayMethodTestsIdVarOptions": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "AuthorizationType": "NONE",
-              "HttpMethod": "OPTIONS",
-              "MethodResponses": [
-                {
-                  "StatusCode": "200",
-                  "ResponseParameters": {
-                    "method.response.header.Access-Control-Allow-Origin": true,
-                    "method.response.header.Access-Control-Allow-Headers": true,
-                    "method.response.header.Access-Control-Allow-Methods": true
-                  },
-                  "ResponseModels": {}
-                }
-              ],
-              "RequestParameters": {},
-              "Integration": {
-                "Type": "MOCK",
-                "RequestTemplates": {
-                  "application/json": "{statusCode:200}"
-                },
-                "ContentHandling": "CONVERT_TO_TEXT",
-                "IntegrationResponses": [
-                  {
-                    "StatusCode": "200",
-                    "ResponseParameters": {
-                      "method.response.header.Access-Control-Allow-Origin": "'*'",
-                      "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,X-Amzn-Trace-Id'",
-                      "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,GET'"
-                    },
-                    "ResponseTemplates": {
-                      "application/json": ""
-                    }
-                  }
-                ]
-              },
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceTestsIdVar"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayMethodTestsIdVarSubmitOptions": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "AuthorizationType": "NONE",
-              "HttpMethod": "OPTIONS",
-              "MethodResponses": [
-                {
-                  "StatusCode": "200",
-                  "ResponseParameters": {
-                    "method.response.header.Access-Control-Allow-Origin": true,
-                    "method.response.header.Access-Control-Allow-Headers": true,
-                    "method.response.header.Access-Control-Allow-Methods": true
-                  },
-                  "ResponseModels": {}
-                }
-              ],
-              "RequestParameters": {},
-              "Integration": {
-                "Type": "MOCK",
-                "RequestTemplates": {
-                  "application/json": "{statusCode:200}"
-                },
-                "ContentHandling": "CONVERT_TO_TEXT",
-                "IntegrationResponses": [
-                  {
-                    "StatusCode": "200",
-                    "ResponseParameters": {
-                      "method.response.header.Access-Control-Allow-Origin": "'*'",
-                      "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,X-Amzn-Trace-Id'",
-                      "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,POST'"
-                    },
-                    "ResponseTemplates": {
-                      "application/json": ""
-                    }
-                  }
-                ]
-              },
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceTestsIdVarSubmit"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
           "ApiGatewayMethodFilesUploadDashurlOptions": {
             "Type": "AWS::ApiGateway::Method",
             "Properties": {
@@ -2041,51 +1045,6 @@
               },
               "ResourceId": {
                 "Ref": "ApiGatewayResourceFilesUploadDashurl"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              }
-            }
-          },
-          "ApiGatewayMethodNotificationsSendOptions": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "AuthorizationType": "NONE",
-              "HttpMethod": "OPTIONS",
-              "MethodResponses": [
-                {
-                  "StatusCode": "200",
-                  "ResponseParameters": {
-                    "method.response.header.Access-Control-Allow-Origin": true,
-                    "method.response.header.Access-Control-Allow-Headers": true,
-                    "method.response.header.Access-Control-Allow-Methods": true
-                  },
-                  "ResponseModels": {}
-                }
-              ],
-              "RequestParameters": {},
-              "Integration": {
-                "Type": "MOCK",
-                "RequestTemplates": {
-                  "application/json": "{statusCode:200}"
-                },
-                "ContentHandling": "CONVERT_TO_TEXT",
-                "IntegrationResponses": [
-                  {
-                    "StatusCode": "200",
-                    "ResponseParameters": {
-                      "method.response.header.Access-Control-Allow-Origin": "'*'",
-                      "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,X-Amzn-Trace-Id'",
-                      "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,POST'"
-                    },
-                    "ResponseTemplates": {
-                      "application/json": ""
-                    }
-                  }
-                ]
-              },
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceNotificationsSend"
               },
               "RestApiId": {
                 "Ref": "ApiGatewayRestApi"
@@ -2242,10 +1201,7 @@
                 "Ref": "ApiGatewayRestApi"
               },
               "ApiKeyRequired": false,
-              "AuthorizationType": "CUSTOM",
-              "AuthorizerId": {
-                "Ref": "AuthorizerFuncApiGatewayAuthorizer"
-              },
+              "AuthorizationType": "NONE",
               "Integration": {
                 "IntegrationHttpMethod": "POST",
                 "Type": "AWS_PROXY",
@@ -2276,7 +1232,7 @@
               "MethodResponses": []
             },
             "DependsOn": [
-              "AuthorizerFuncApiGatewayAuthorizer"
+              "CreateJobLambdaPermissionApiGateway"
             ]
           },
           "ApiGatewayMethodJobsGet": {
@@ -2383,10 +1339,7 @@
                 "Ref": "ApiGatewayRestApi"
               },
               "ApiKeyRequired": false,
-              "AuthorizationType": "CUSTOM",
-              "AuthorizerId": {
-                "Ref": "AuthorizerFuncApiGatewayAuthorizer"
-              },
+              "AuthorizationType": "NONE",
               "Integration": {
                 "IntegrationHttpMethod": "POST",
                 "Type": "AWS_PROXY",
@@ -2417,7 +1370,7 @@
               "MethodResponses": []
             },
             "DependsOn": [
-              "AuthorizerFuncApiGatewayAuthorizer"
+              "UpdateJobLambdaPermissionApiGateway"
             ]
           },
           "ApiGatewayMethodJobsIdVarDelete": {
@@ -2432,10 +1385,7 @@
                 "Ref": "ApiGatewayRestApi"
               },
               "ApiKeyRequired": false,
-              "AuthorizationType": "CUSTOM",
-              "AuthorizerId": {
-                "Ref": "AuthorizerFuncApiGatewayAuthorizer"
-              },
+              "AuthorizationType": "NONE",
               "Integration": {
                 "IntegrationHttpMethod": "POST",
                 "Type": "AWS_PROXY",
@@ -2466,350 +1416,7 @@
               "MethodResponses": []
             },
             "DependsOn": [
-              "AuthorizerFuncApiGatewayAuthorizer"
-            ]
-          },
-          "ApiGatewayMethodApplicationsPost": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "HttpMethod": "POST",
-              "RequestParameters": {},
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceApplications"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              },
-              "ApiKeyRequired": false,
-              "AuthorizationType": "CUSTOM",
-              "AuthorizerId": {
-                "Ref": "AuthorizerFuncApiGatewayAuthorizer"
-              },
-              "Integration": {
-                "IntegrationHttpMethod": "POST",
-                "Type": "AWS_PROXY",
-                "Uri": {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "arn:",
-                      {
-                        "Ref": "AWS::Partition"
-                      },
-                      ":apigateway:",
-                      {
-                        "Ref": "AWS::Region"
-                      },
-                      ":lambda:path/2015-03-31/functions/",
-                      {
-                        "Fn::GetAtt": [
-                          "CreateApplicationLambdaFunction",
-                          "Arn"
-                        ]
-                      },
-                      "/invocations"
-                    ]
-                  ]
-                }
-              },
-              "MethodResponses": []
-            },
-            "DependsOn": [
-              "AuthorizerFuncApiGatewayAuthorizer"
-            ]
-          },
-          "ApiGatewayMethodApplicationsGet": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "HttpMethod": "GET",
-              "RequestParameters": {},
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceApplications"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              },
-              "ApiKeyRequired": false,
-              "AuthorizationType": "CUSTOM",
-              "AuthorizerId": {
-                "Ref": "AuthorizerFuncApiGatewayAuthorizer"
-              },
-              "Integration": {
-                "IntegrationHttpMethod": "POST",
-                "Type": "AWS_PROXY",
-                "Uri": {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "arn:",
-                      {
-                        "Ref": "AWS::Partition"
-                      },
-                      ":apigateway:",
-                      {
-                        "Ref": "AWS::Region"
-                      },
-                      ":lambda:path/2015-03-31/functions/",
-                      {
-                        "Fn::GetAtt": [
-                          "GetApplicationsLambdaFunction",
-                          "Arn"
-                        ]
-                      },
-                      "/invocations"
-                    ]
-                  ]
-                }
-              },
-              "MethodResponses": []
-            },
-            "DependsOn": [
-              "AuthorizerFuncApiGatewayAuthorizer"
-            ]
-          },
-          "ApiGatewayMethodApplicationsIdVarGet": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "HttpMethod": "GET",
-              "RequestParameters": {},
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceApplicationsIdVar"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              },
-              "ApiKeyRequired": false,
-              "AuthorizationType": "CUSTOM",
-              "AuthorizerId": {
-                "Ref": "AuthorizerFuncApiGatewayAuthorizer"
-              },
-              "Integration": {
-                "IntegrationHttpMethod": "POST",
-                "Type": "AWS_PROXY",
-                "Uri": {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "arn:",
-                      {
-                        "Ref": "AWS::Partition"
-                      },
-                      ":apigateway:",
-                      {
-                        "Ref": "AWS::Region"
-                      },
-                      ":lambda:path/2015-03-31/functions/",
-                      {
-                        "Fn::GetAtt": [
-                          "GetApplicationLambdaFunction",
-                          "Arn"
-                        ]
-                      },
-                      "/invocations"
-                    ]
-                  ]
-                }
-              },
-              "MethodResponses": []
-            },
-            "DependsOn": [
-              "AuthorizerFuncApiGatewayAuthorizer"
-            ]
-          },
-          "ApiGatewayMethodApplicationsIdVarStagePut": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "HttpMethod": "PUT",
-              "RequestParameters": {},
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceApplicationsIdVarStage"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              },
-              "ApiKeyRequired": false,
-              "AuthorizationType": "CUSTOM",
-              "AuthorizerId": {
-                "Ref": "AuthorizerFuncApiGatewayAuthorizer"
-              },
-              "Integration": {
-                "IntegrationHttpMethod": "POST",
-                "Type": "AWS_PROXY",
-                "Uri": {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "arn:",
-                      {
-                        "Ref": "AWS::Partition"
-                      },
-                      ":apigateway:",
-                      {
-                        "Ref": "AWS::Region"
-                      },
-                      ":lambda:path/2015-03-31/functions/",
-                      {
-                        "Fn::GetAtt": [
-                          "UpdateApplicationStageLambdaFunction",
-                          "Arn"
-                        ]
-                      },
-                      "/invocations"
-                    ]
-                  ]
-                }
-              },
-              "MethodResponses": []
-            },
-            "DependsOn": [
-              "AuthorizerFuncApiGatewayAuthorizer"
-            ]
-          },
-          "ApiGatewayMethodTestsPost": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "HttpMethod": "POST",
-              "RequestParameters": {},
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceTests"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              },
-              "ApiKeyRequired": false,
-              "AuthorizationType": "CUSTOM",
-              "AuthorizerId": {
-                "Ref": "AuthorizerFuncApiGatewayAuthorizer"
-              },
-              "Integration": {
-                "IntegrationHttpMethod": "POST",
-                "Type": "AWS_PROXY",
-                "Uri": {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "arn:",
-                      {
-                        "Ref": "AWS::Partition"
-                      },
-                      ":apigateway:",
-                      {
-                        "Ref": "AWS::Region"
-                      },
-                      ":lambda:path/2015-03-31/functions/",
-                      {
-                        "Fn::GetAtt": [
-                          "CreateTestLambdaFunction",
-                          "Arn"
-                        ]
-                      },
-                      "/invocations"
-                    ]
-                  ]
-                }
-              },
-              "MethodResponses": []
-            },
-            "DependsOn": [
-              "AuthorizerFuncApiGatewayAuthorizer"
-            ]
-          },
-          "ApiGatewayMethodTestsIdVarGet": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "HttpMethod": "GET",
-              "RequestParameters": {},
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceTestsIdVar"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              },
-              "ApiKeyRequired": false,
-              "AuthorizationType": "CUSTOM",
-              "AuthorizerId": {
-                "Ref": "AuthorizerFuncApiGatewayAuthorizer"
-              },
-              "Integration": {
-                "IntegrationHttpMethod": "POST",
-                "Type": "AWS_PROXY",
-                "Uri": {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "arn:",
-                      {
-                        "Ref": "AWS::Partition"
-                      },
-                      ":apigateway:",
-                      {
-                        "Ref": "AWS::Region"
-                      },
-                      ":lambda:path/2015-03-31/functions/",
-                      {
-                        "Fn::GetAtt": [
-                          "GetTestLambdaFunction",
-                          "Arn"
-                        ]
-                      },
-                      "/invocations"
-                    ]
-                  ]
-                }
-              },
-              "MethodResponses": []
-            },
-            "DependsOn": [
-              "AuthorizerFuncApiGatewayAuthorizer"
-            ]
-          },
-          "ApiGatewayMethodTestsIdVarSubmitPost": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "HttpMethod": "POST",
-              "RequestParameters": {},
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceTestsIdVarSubmit"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              },
-              "ApiKeyRequired": false,
-              "AuthorizationType": "CUSTOM",
-              "AuthorizerId": {
-                "Ref": "AuthorizerFuncApiGatewayAuthorizer"
-              },
-              "Integration": {
-                "IntegrationHttpMethod": "POST",
-                "Type": "AWS_PROXY",
-                "Uri": {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "arn:",
-                      {
-                        "Ref": "AWS::Partition"
-                      },
-                      ":apigateway:",
-                      {
-                        "Ref": "AWS::Region"
-                      },
-                      ":lambda:path/2015-03-31/functions/",
-                      {
-                        "Fn::GetAtt": [
-                          "SubmitTestLambdaFunction",
-                          "Arn"
-                        ]
-                      },
-                      "/invocations"
-                    ]
-                  ]
-                }
-              },
-              "MethodResponses": []
-            },
-            "DependsOn": [
-              "AuthorizerFuncApiGatewayAuthorizer"
+              "DeleteJobLambdaPermissionApiGateway"
             ]
           },
           "ApiGatewayMethodFilesUploadDashurlPost": {
@@ -2824,10 +1431,7 @@
                 "Ref": "ApiGatewayRestApi"
               },
               "ApiKeyRequired": false,
-              "AuthorizationType": "CUSTOM",
-              "AuthorizerId": {
-                "Ref": "AuthorizerFuncApiGatewayAuthorizer"
-              },
+              "AuthorizationType": "NONE",
               "Integration": {
                 "IntegrationHttpMethod": "POST",
                 "Type": "AWS_PROXY",
@@ -2858,93 +1462,10 @@
               "MethodResponses": []
             },
             "DependsOn": [
-              "AuthorizerFuncApiGatewayAuthorizer"
+              "GetUploadUrlLambdaPermissionApiGateway"
             ]
           },
-          "ApiGatewayMethodNotificationsSendPost": {
-            "Type": "AWS::ApiGateway::Method",
-            "Properties": {
-              "HttpMethod": "POST",
-              "RequestParameters": {},
-              "ResourceId": {
-                "Ref": "ApiGatewayResourceNotificationsSend"
-              },
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              },
-              "ApiKeyRequired": false,
-              "AuthorizationType": "CUSTOM",
-              "AuthorizerId": {
-                "Ref": "AuthorizerFuncApiGatewayAuthorizer"
-              },
-              "Integration": {
-                "IntegrationHttpMethod": "POST",
-                "Type": "AWS_PROXY",
-                "Uri": {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "arn:",
-                      {
-                        "Ref": "AWS::Partition"
-                      },
-                      ":apigateway:",
-                      {
-                        "Ref": "AWS::Region"
-                      },
-                      ":lambda:path/2015-03-31/functions/",
-                      {
-                        "Fn::GetAtt": [
-                          "SendNotificationLambdaFunction",
-                          "Arn"
-                        ]
-                      },
-                      "/invocations"
-                    ]
-                  ]
-                }
-              },
-              "MethodResponses": []
-            },
-            "DependsOn": [
-              "AuthorizerFuncApiGatewayAuthorizer"
-            ]
-          },
-          "AuthorizerFuncApiGatewayAuthorizer": {
-            "Type": "AWS::ApiGateway::Authorizer",
-            "Properties": {
-              "IdentitySource": "method.request.header.Authorization",
-              "Name": "authorizerFunc",
-              "RestApiId": {
-                "Ref": "ApiGatewayRestApi"
-              },
-              "AuthorizerUri": {
-                "Fn::Join": [
-                  "",
-                  [
-                    "arn:",
-                    {
-                      "Ref": "AWS::Partition"
-                    },
-                    ":apigateway:",
-                    {
-                      "Ref": "AWS::Region"
-                    },
-                    ":lambda:path/2015-03-31/functions/",
-                    {
-                      "Fn::GetAtt": [
-                        "AuthorizerFuncLambdaFunction",
-                        "Arn"
-                      ]
-                    },
-                    "/invocations"
-                  ]
-                ]
-              },
-              "Type": "TOKEN"
-            }
-          },
-          "ApiGatewayDeployment1757977748301": {
+          "ApiGatewayDeployment1758103504262": {
             "Type": "AWS::ApiGateway::Deployment",
             "Properties": {
               "RestApiId": {
@@ -2958,14 +1479,7 @@
               "ApiGatewayMethodAuthVerifyOptions",
               "ApiGatewayMethodJobsOptions",
               "ApiGatewayMethodJobsIdVarOptions",
-              "ApiGatewayMethodApplicationsOptions",
-              "ApiGatewayMethodApplicationsIdVarOptions",
-              "ApiGatewayMethodApplicationsIdVarStageOptions",
-              "ApiGatewayMethodTestsOptions",
-              "ApiGatewayMethodTestsIdVarOptions",
-              "ApiGatewayMethodTestsIdVarSubmitOptions",
               "ApiGatewayMethodFilesUploadDashurlOptions",
-              "ApiGatewayMethodNotificationsSendOptions",
               "ApiGatewayMethodAuthLoginPost",
               "ApiGatewayMethodAuthRegisterPost",
               "ApiGatewayMethodAuthVerifyPost",
@@ -2974,15 +1488,7 @@
               "ApiGatewayMethodJobsIdVarGet",
               "ApiGatewayMethodJobsIdVarPut",
               "ApiGatewayMethodJobsIdVarDelete",
-              "ApiGatewayMethodApplicationsPost",
-              "ApiGatewayMethodApplicationsGet",
-              "ApiGatewayMethodApplicationsIdVarGet",
-              "ApiGatewayMethodApplicationsIdVarStagePut",
-              "ApiGatewayMethodTestsPost",
-              "ApiGatewayMethodTestsIdVarGet",
-              "ApiGatewayMethodTestsIdVarSubmitPost",
-              "ApiGatewayMethodFilesUploadDashurlPost",
-              "ApiGatewayMethodNotificationsSendPost"
+              "ApiGatewayMethodFilesUploadDashurlPost"
             ]
           },
           "LoginLambdaPermissionApiGateway": {
@@ -3102,43 +1608,6 @@
               "FunctionName": {
                 "Fn::GetAtt": [
                   "CreateJobLambdaFunction",
-                  "Arn"
-                ]
-              },
-              "Action": "lambda:InvokeFunction",
-              "Principal": "apigateway.amazonaws.com",
-              "SourceArn": {
-                "Fn::Join": [
-                  "",
-                  [
-                    "arn:",
-                    {
-                      "Ref": "AWS::Partition"
-                    },
-                    ":execute-api:",
-                    {
-                      "Ref": "AWS::Region"
-                    },
-                    ":",
-                    {
-                      "Ref": "AWS::AccountId"
-                    },
-                    ":",
-                    {
-                      "Ref": "ApiGatewayRestApi"
-                    },
-                    "/*/*"
-                  ]
-                ]
-              }
-            }
-          },
-          "AuthorizerFuncLambdaPermissionApiGateway": {
-            "Type": "AWS::Lambda::Permission",
-            "Properties": {
-              "FunctionName": {
-                "Fn::GetAtt": [
-                  "AuthorizerFuncLambdaFunction",
                   "Arn"
                 ]
               },
@@ -3318,265 +1787,6 @@
               }
             }
           },
-          "CreateApplicationLambdaPermissionApiGateway": {
-            "Type": "AWS::Lambda::Permission",
-            "Properties": {
-              "FunctionName": {
-                "Fn::GetAtt": [
-                  "CreateApplicationLambdaFunction",
-                  "Arn"
-                ]
-              },
-              "Action": "lambda:InvokeFunction",
-              "Principal": "apigateway.amazonaws.com",
-              "SourceArn": {
-                "Fn::Join": [
-                  "",
-                  [
-                    "arn:",
-                    {
-                      "Ref": "AWS::Partition"
-                    },
-                    ":execute-api:",
-                    {
-                      "Ref": "AWS::Region"
-                    },
-                    ":",
-                    {
-                      "Ref": "AWS::AccountId"
-                    },
-                    ":",
-                    {
-                      "Ref": "ApiGatewayRestApi"
-                    },
-                    "/*/*"
-                  ]
-                ]
-              }
-            }
-          },
-          "GetApplicationsLambdaPermissionApiGateway": {
-            "Type": "AWS::Lambda::Permission",
-            "Properties": {
-              "FunctionName": {
-                "Fn::GetAtt": [
-                  "GetApplicationsLambdaFunction",
-                  "Arn"
-                ]
-              },
-              "Action": "lambda:InvokeFunction",
-              "Principal": "apigateway.amazonaws.com",
-              "SourceArn": {
-                "Fn::Join": [
-                  "",
-                  [
-                    "arn:",
-                    {
-                      "Ref": "AWS::Partition"
-                    },
-                    ":execute-api:",
-                    {
-                      "Ref": "AWS::Region"
-                    },
-                    ":",
-                    {
-                      "Ref": "AWS::AccountId"
-                    },
-                    ":",
-                    {
-                      "Ref": "ApiGatewayRestApi"
-                    },
-                    "/*/*"
-                  ]
-                ]
-              }
-            }
-          },
-          "GetApplicationLambdaPermissionApiGateway": {
-            "Type": "AWS::Lambda::Permission",
-            "Properties": {
-              "FunctionName": {
-                "Fn::GetAtt": [
-                  "GetApplicationLambdaFunction",
-                  "Arn"
-                ]
-              },
-              "Action": "lambda:InvokeFunction",
-              "Principal": "apigateway.amazonaws.com",
-              "SourceArn": {
-                "Fn::Join": [
-                  "",
-                  [
-                    "arn:",
-                    {
-                      "Ref": "AWS::Partition"
-                    },
-                    ":execute-api:",
-                    {
-                      "Ref": "AWS::Region"
-                    },
-                    ":",
-                    {
-                      "Ref": "AWS::AccountId"
-                    },
-                    ":",
-                    {
-                      "Ref": "ApiGatewayRestApi"
-                    },
-                    "/*/*"
-                  ]
-                ]
-              }
-            }
-          },
-          "UpdateApplicationStageLambdaPermissionApiGateway": {
-            "Type": "AWS::Lambda::Permission",
-            "Properties": {
-              "FunctionName": {
-                "Fn::GetAtt": [
-                  "UpdateApplicationStageLambdaFunction",
-                  "Arn"
-                ]
-              },
-              "Action": "lambda:InvokeFunction",
-              "Principal": "apigateway.amazonaws.com",
-              "SourceArn": {
-                "Fn::Join": [
-                  "",
-                  [
-                    "arn:",
-                    {
-                      "Ref": "AWS::Partition"
-                    },
-                    ":execute-api:",
-                    {
-                      "Ref": "AWS::Region"
-                    },
-                    ":",
-                    {
-                      "Ref": "AWS::AccountId"
-                    },
-                    ":",
-                    {
-                      "Ref": "ApiGatewayRestApi"
-                    },
-                    "/*/*"
-                  ]
-                ]
-              }
-            }
-          },
-          "CreateTestLambdaPermissionApiGateway": {
-            "Type": "AWS::Lambda::Permission",
-            "Properties": {
-              "FunctionName": {
-                "Fn::GetAtt": [
-                  "CreateTestLambdaFunction",
-                  "Arn"
-                ]
-              },
-              "Action": "lambda:InvokeFunction",
-              "Principal": "apigateway.amazonaws.com",
-              "SourceArn": {
-                "Fn::Join": [
-                  "",
-                  [
-                    "arn:",
-                    {
-                      "Ref": "AWS::Partition"
-                    },
-                    ":execute-api:",
-                    {
-                      "Ref": "AWS::Region"
-                    },
-                    ":",
-                    {
-                      "Ref": "AWS::AccountId"
-                    },
-                    ":",
-                    {
-                      "Ref": "ApiGatewayRestApi"
-                    },
-                    "/*/*"
-                  ]
-                ]
-              }
-            }
-          },
-          "GetTestLambdaPermissionApiGateway": {
-            "Type": "AWS::Lambda::Permission",
-            "Properties": {
-              "FunctionName": {
-                "Fn::GetAtt": [
-                  "GetTestLambdaFunction",
-                  "Arn"
-                ]
-              },
-              "Action": "lambda:InvokeFunction",
-              "Principal": "apigateway.amazonaws.com",
-              "SourceArn": {
-                "Fn::Join": [
-                  "",
-                  [
-                    "arn:",
-                    {
-                      "Ref": "AWS::Partition"
-                    },
-                    ":execute-api:",
-                    {
-                      "Ref": "AWS::Region"
-                    },
-                    ":",
-                    {
-                      "Ref": "AWS::AccountId"
-                    },
-                    ":",
-                    {
-                      "Ref": "ApiGatewayRestApi"
-                    },
-                    "/*/*"
-                  ]
-                ]
-              }
-            }
-          },
-          "SubmitTestLambdaPermissionApiGateway": {
-            "Type": "AWS::Lambda::Permission",
-            "Properties": {
-              "FunctionName": {
-                "Fn::GetAtt": [
-                  "SubmitTestLambdaFunction",
-                  "Arn"
-                ]
-              },
-              "Action": "lambda:InvokeFunction",
-              "Principal": "apigateway.amazonaws.com",
-              "SourceArn": {
-                "Fn::Join": [
-                  "",
-                  [
-                    "arn:",
-                    {
-                      "Ref": "AWS::Partition"
-                    },
-                    ":execute-api:",
-                    {
-                      "Ref": "AWS::Region"
-                    },
-                    ":",
-                    {
-                      "Ref": "AWS::AccountId"
-                    },
-                    ":",
-                    {
-                      "Ref": "ApiGatewayRestApi"
-                    },
-                    "/*/*"
-                  ]
-                ]
-              }
-            }
-          },
           "GetUploadUrlLambdaPermissionApiGateway": {
             "Type": "AWS::Lambda::Permission",
             "Properties": {
@@ -3613,439 +1823,6 @@
                 ]
               }
             }
-          },
-          "SendNotificationLambdaPermissionApiGateway": {
-            "Type": "AWS::Lambda::Permission",
-            "Properties": {
-              "FunctionName": {
-                "Fn::GetAtt": [
-                  "SendNotificationLambdaFunction",
-                  "Arn"
-                ]
-              },
-              "Action": "lambda:InvokeFunction",
-              "Principal": "apigateway.amazonaws.com",
-              "SourceArn": {
-                "Fn::Join": [
-                  "",
-                  [
-                    "arn:",
-                    {
-                      "Ref": "AWS::Partition"
-                    },
-                    ":execute-api:",
-                    {
-                      "Ref": "AWS::Region"
-                    },
-                    ":",
-                    {
-                      "Ref": "AWS::AccountId"
-                    },
-                    ":",
-                    {
-                      "Ref": "ApiGatewayRestApi"
-                    },
-                    "/*/*"
-                  ]
-                ]
-              }
-            }
-          },
-          "JobsTable": {
-            "Type": "AWS::DynamoDB::Table",
-            "Properties": {
-              "TableName": "ab-holistic-interview-portal-jobs-dev",
-              "AttributeDefinitions": [
-                {
-                  "AttributeName": "jobId",
-                  "AttributeType": "S"
-                },
-                {
-                  "AttributeName": "status",
-                  "AttributeType": "S"
-                },
-                {
-                  "AttributeName": "createdAt",
-                  "AttributeType": "S"
-                }
-              ],
-              "KeySchema": [
-                {
-                  "AttributeName": "jobId",
-                  "KeyType": "HASH"
-                }
-              ],
-              "GlobalSecondaryIndexes": [
-                {
-                  "IndexName": "StatusIndex",
-                  "KeySchema": [
-                    {
-                      "AttributeName": "status",
-                      "KeyType": "HASH"
-                    },
-                    {
-                      "AttributeName": "createdAt",
-                      "KeyType": "RANGE"
-                    }
-                  ],
-                  "Projection": {
-                    "ProjectionType": "ALL"
-                  },
-                  "ProvisionedThroughput": {
-                    "ReadCapacityUnits": 5,
-                    "WriteCapacityUnits": 5
-                  }
-                }
-              ],
-              "ProvisionedThroughput": {
-                "ReadCapacityUnits": 5,
-                "WriteCapacityUnits": 5
-              }
-            }
-          },
-          "ApplicantsTable": {
-            "Type": "AWS::DynamoDB::Table",
-            "Properties": {
-              "TableName": "ab-holistic-interview-portal-applicants-dev",
-              "AttributeDefinitions": [
-                {
-                  "AttributeName": "applicantId",
-                  "AttributeType": "S"
-                },
-                {
-                  "AttributeName": "email",
-                  "AttributeType": "S"
-                }
-              ],
-              "KeySchema": [
-                {
-                  "AttributeName": "applicantId",
-                  "KeyType": "HASH"
-                }
-              ],
-              "GlobalSecondaryIndexes": [
-                {
-                  "IndexName": "EmailIndex",
-                  "KeySchema": [
-                    {
-                      "AttributeName": "email",
-                      "KeyType": "HASH"
-                    }
-                  ],
-                  "Projection": {
-                    "ProjectionType": "ALL"
-                  },
-                  "ProvisionedThroughput": {
-                    "ReadCapacityUnits": 5,
-                    "WriteCapacityUnits": 5
-                  }
-                }
-              ],
-              "ProvisionedThroughput": {
-                "ReadCapacityUnits": 5,
-                "WriteCapacityUnits": 5
-              }
-            }
-          },
-          "ApplicationsTable": {
-            "Type": "AWS::DynamoDB::Table",
-            "Properties": {
-              "TableName": "ab-holistic-interview-portal-applications-dev",
-              "AttributeDefinitions": [
-                {
-                  "AttributeName": "applicationId",
-                  "AttributeType": "S"
-                },
-                {
-                  "AttributeName": "jobId",
-                  "AttributeType": "S"
-                },
-                {
-                  "AttributeName": "applicantId",
-                  "AttributeType": "S"
-                },
-                {
-                  "AttributeName": "stage",
-                  "AttributeType": "S"
-                }
-              ],
-              "KeySchema": [
-                {
-                  "AttributeName": "applicationId",
-                  "KeyType": "HASH"
-                }
-              ],
-              "GlobalSecondaryIndexes": [
-                {
-                  "IndexName": "JobIndex",
-                  "KeySchema": [
-                    {
-                      "AttributeName": "jobId",
-                      "KeyType": "HASH"
-                    },
-                    {
-                      "AttributeName": "stage",
-                      "KeyType": "RANGE"
-                    }
-                  ],
-                  "Projection": {
-                    "ProjectionType": "ALL"
-                  },
-                  "ProvisionedThroughput": {
-                    "ReadCapacityUnits": 5,
-                    "WriteCapacityUnits": 5
-                  }
-                },
-                {
-                  "IndexName": "ApplicantIndex",
-                  "KeySchema": [
-                    {
-                      "AttributeName": "applicantId",
-                      "KeyType": "HASH"
-                    }
-                  ],
-                  "Projection": {
-                    "ProjectionType": "ALL"
-                  },
-                  "ProvisionedThroughput": {
-                    "ReadCapacityUnits": 5,
-                    "WriteCapacityUnits": 5
-                  }
-                }
-              ],
-              "ProvisionedThroughput": {
-                "ReadCapacityUnits": 5,
-                "WriteCapacityUnits": 5
-              }
-            }
-          },
-          "TestsTable": {
-            "Type": "AWS::DynamoDB::Table",
-            "Properties": {
-              "TableName": "ab-holistic-interview-portal-tests-dev",
-              "AttributeDefinitions": [
-                {
-                  "AttributeName": "testId",
-                  "AttributeType": "S"
-                },
-                {
-                  "AttributeName": "jobId",
-                  "AttributeType": "S"
-                }
-              ],
-              "KeySchema": [
-                {
-                  "AttributeName": "testId",
-                  "KeyType": "HASH"
-                }
-              ],
-              "GlobalSecondaryIndexes": [
-                {
-                  "IndexName": "JobIndex",
-                  "KeySchema": [
-                    {
-                      "AttributeName": "jobId",
-                      "KeyType": "HASH"
-                    }
-                  ],
-                  "Projection": {
-                    "ProjectionType": "ALL"
-                  },
-                  "ProvisionedThroughput": {
-                    "ReadCapacityUnits": 5,
-                    "WriteCapacityUnits": 5
-                  }
-                }
-              ],
-              "ProvisionedThroughput": {
-                "ReadCapacityUnits": 5,
-                "WriteCapacityUnits": 5
-              }
-            }
-          },
-          "TestSubmissionsTable": {
-            "Type": "AWS::DynamoDB::Table",
-            "Properties": {
-              "TableName": "ab-holistic-interview-portal-test-submissions-dev",
-              "AttributeDefinitions": [
-                {
-                  "AttributeName": "submissionId",
-                  "AttributeType": "S"
-                },
-                {
-                  "AttributeName": "testId",
-                  "AttributeType": "S"
-                },
-                {
-                  "AttributeName": "applicantId",
-                  "AttributeType": "S"
-                }
-              ],
-              "KeySchema": [
-                {
-                  "AttributeName": "submissionId",
-                  "KeyType": "HASH"
-                }
-              ],
-              "GlobalSecondaryIndexes": [
-                {
-                  "IndexName": "TestIndex",
-                  "KeySchema": [
-                    {
-                      "AttributeName": "testId",
-                      "KeyType": "HASH"
-                    }
-                  ],
-                  "Projection": {
-                    "ProjectionType": "ALL"
-                  },
-                  "ProvisionedThroughput": {
-                    "ReadCapacityUnits": 5,
-                    "WriteCapacityUnits": 5
-                  }
-                },
-                {
-                  "IndexName": "ApplicantIndex",
-                  "KeySchema": [
-                    {
-                      "AttributeName": "applicantId",
-                      "KeyType": "HASH"
-                    }
-                  ],
-                  "Projection": {
-                    "ProjectionType": "ALL"
-                  },
-                  "ProvisionedThroughput": {
-                    "ReadCapacityUnits": 5,
-                    "WriteCapacityUnits": 5
-                  }
-                }
-              ],
-              "ProvisionedThroughput": {
-                "ReadCapacityUnits": 5,
-                "WriteCapacityUnits": 5
-              }
-            }
-          },
-          "NotificationsTable": {
-            "Type": "AWS::DynamoDB::Table",
-            "Properties": {
-              "TableName": "ab-holistic-interview-portal-notifications-dev",
-              "AttributeDefinitions": [
-                {
-                  "AttributeName": "notificationId",
-                  "AttributeType": "S"
-                },
-                {
-                  "AttributeName": "recipientId",
-                  "AttributeType": "S"
-                }
-              ],
-              "KeySchema": [
-                {
-                  "AttributeName": "notificationId",
-                  "KeyType": "HASH"
-                }
-              ],
-              "GlobalSecondaryIndexes": [
-                {
-                  "IndexName": "RecipientIndex",
-                  "KeySchema": [
-                    {
-                      "AttributeName": "recipientId",
-                      "KeyType": "HASH"
-                    }
-                  ],
-                  "Projection": {
-                    "ProjectionType": "ALL"
-                  },
-                  "ProvisionedThroughput": {
-                    "ReadCapacityUnits": 5,
-                    "WriteCapacityUnits": 5
-                  }
-                }
-              ],
-              "ProvisionedThroughput": {
-                "ReadCapacityUnits": 5,
-                "WriteCapacityUnits": 5
-              }
-            }
-          },
-          "ResumesBucket": {
-            "Type": "AWS::S3::Bucket",
-            "Properties": {
-              "BucketName": "ab-holistic-interview-portal-resumes-dev",
-              "PublicAccessBlockConfiguration": {
-                "BlockPublicAcls": true,
-                "BlockPublicPolicy": true,
-                "IgnorePublicAcls": true,
-                "RestrictPublicBuckets": true
-              },
-              "BucketEncryption": {
-                "ServerSideEncryptionConfiguration": [
-                  {
-                    "ServerSideEncryptionByDefault": {
-                      "SSEAlgorithm": "AES256"
-                    }
-                  }
-                ]
-              },
-              "VersioningConfiguration": {
-                "Status": "Enabled"
-              },
-              "LifecycleConfiguration": {
-                "Rules": [
-                  {
-                    "Id": "DeleteOldVersions",
-                    "Status": "Enabled",
-                    "NoncurrentVersionExpirationInDays": 30
-                  }
-                ]
-              }
-            }
-          },
-          "VideosBucket": {
-            "Type": "AWS::S3::Bucket",
-            "Properties": {
-              "BucketName": "ab-holistic-interview-portal-videos-dev",
-              "PublicAccessBlockConfiguration": {
-                "BlockPublicAcls": true,
-                "BlockPublicPolicy": true,
-                "IgnorePublicAcls": true,
-                "RestrictPublicBuckets": true
-              },
-              "BucketEncryption": {
-                "ServerSideEncryptionConfiguration": [
-                  {
-                    "ServerSideEncryptionByDefault": {
-                      "SSEAlgorithm": "AES256"
-                    }
-                  }
-                ]
-              },
-              "VersioningConfiguration": {
-                "Status": "Enabled"
-              },
-              "LifecycleConfiguration": {
-                "Rules": [
-                  {
-                    "Id": "DeleteOldVersions",
-                    "Status": "Enabled",
-                    "NoncurrentVersionExpirationInDays": 30
-                  },
-                  {
-                    "Id": "ArchiveOldVideos",
-                    "Status": "Enabled",
-                    "Transitions": [
-                      {
-                        "StorageClass": "GLACIER",
-                        "TransitionInDays": 90
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
           }
         },
         "Outputs": {
@@ -4060,7 +1837,7 @@
           "LoginLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "LoginLambdaVersionJ5punDtrIolW1xBsTVW1WJEs6IuFS0HOU1MT6P0G8"
+              "Ref": "LoginLambdaVersioncQFgFQBvyfZH2K86MaOg34KsqivGqnvNszHxwyBmPcE"
             },
             "Export": {
               "Name": "sls-ab-holistic-interview-portal-dev-LoginLambdaFunctionQualifiedArn"
@@ -4069,7 +1846,7 @@
           "RegisterLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "RegisterLambdaVersionJoWwdo64bOQGkIvUL7LmbHy6TQAu051lxOOv7GqZQLU"
+              "Ref": "RegisterLambdaVersionV8S9w6QZbdISKOpzqwwJcGptxZkMkFx08AKgj0wydUQ"
             },
             "Export": {
               "Name": "sls-ab-holistic-interview-portal-dev-RegisterLambdaFunctionQualifiedArn"
@@ -4078,7 +1855,7 @@
           "VerifyLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "VerifyLambdaVersionJsClg6u8l01f0zSDTJVybFW4TasjmsqGXLXqMyeDj9k"
+              "Ref": "VerifyLambdaVersiongSwurkVL4XuAVdzaf3Em2geu1amWTkXQtYCX6fR5c"
             },
             "Export": {
               "Name": "sls-ab-holistic-interview-portal-dev-VerifyLambdaFunctionQualifiedArn"
@@ -4087,7 +1864,7 @@
           "CreateJobLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "CreateJobLambdaVersionwZVszGqI6VRPtOIePZL9cc5SrpPb5sa2d3Hnvxg"
+              "Ref": "CreateJobLambdaVersioneyTuGacn8ubGMrBOy8D25SANqo8q5EIQjl04lXPKkco"
             },
             "Export": {
               "Name": "sls-ab-holistic-interview-portal-dev-CreateJobLambdaFunctionQualifiedArn"
@@ -4096,7 +1873,7 @@
           "GetJobsLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "GetJobsLambdaVersionzw7BLdHwM3aftCGk4M34R51heqbrbRtEnmfLaasE4uo"
+              "Ref": "GetJobsLambdaVersion7L9j1yptzHqmATXaprU8I3yDlwP2p6bGc9GQokhDY"
             },
             "Export": {
               "Name": "sls-ab-holistic-interview-portal-dev-GetJobsLambdaFunctionQualifiedArn"
@@ -4105,7 +1882,7 @@
           "GetJobLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "GetJobLambdaVersionwdsRJudiphYDZbBepn2pHEPagfU02X1yHNcZxlM8"
+              "Ref": "GetJobLambdaVersionLGFXF6o9wL0g2f8NFyeohjL8gRTd9Mce6OyggKXXUU"
             },
             "Export": {
               "Name": "sls-ab-holistic-interview-portal-dev-GetJobLambdaFunctionQualifiedArn"
@@ -4114,7 +1891,7 @@
           "UpdateJobLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "UpdateJobLambdaVersionvU5g5EyZ2VgJIlLeVVFcCskFqNFWxuc3XvDky3Wxo"
+              "Ref": "UpdateJobLambdaVersionxQefoKCLfA4ZFPkICbMXJxUSRBkOqyGP28dvxv8etPE"
             },
             "Export": {
               "Name": "sls-ab-holistic-interview-portal-dev-UpdateJobLambdaFunctionQualifiedArn"
@@ -4123,100 +1900,19 @@
           "DeleteJobLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "DeleteJobLambdaVersioneVbpoSXB02BldWxvY25uyxCUwSLPktxYOw9OUd02SXM"
+              "Ref": "DeleteJobLambdaVersionfZO1IOoeyP8to2yIBiMn1YVikBuVHpQtxcuuLyKJE"
             },
             "Export": {
               "Name": "sls-ab-holistic-interview-portal-dev-DeleteJobLambdaFunctionQualifiedArn"
             }
           },
-          "CreateApplicationLambdaFunctionQualifiedArn": {
-            "Description": "Current Lambda function version",
-            "Value": {
-              "Ref": "CreateApplicationLambdaVersion6uq7aRKAdftbAYfwyb2ifa2SayjFVAF8oIkB2tC8"
-            },
-            "Export": {
-              "Name": "sls-ab-holistic-interview-portal-dev-CreateApplicationLambdaFunctionQualifiedArn"
-            }
-          },
-          "GetApplicationsLambdaFunctionQualifiedArn": {
-            "Description": "Current Lambda function version",
-            "Value": {
-              "Ref": "GetApplicationsLambdaVersionMVMR7PHjtiMHJ2Cv7EmdPLjdHyB5DblhpyIOBI8EhbU"
-            },
-            "Export": {
-              "Name": "sls-ab-holistic-interview-portal-dev-GetApplicationsLambdaFunctionQualifiedArn"
-            }
-          },
-          "GetApplicationLambdaFunctionQualifiedArn": {
-            "Description": "Current Lambda function version",
-            "Value": {
-              "Ref": "GetApplicationLambdaVersion4vmsxlRJBG6l7N5yQtaWvvRYiGcOQybFnbkZ41zcCE"
-            },
-            "Export": {
-              "Name": "sls-ab-holistic-interview-portal-dev-GetApplicationLambdaFunctionQualifiedArn"
-            }
-          },
-          "UpdateApplicationStageLambdaFunctionQualifiedArn": {
-            "Description": "Current Lambda function version",
-            "Value": {
-              "Ref": "UpdateApplicationStageLambdaVersionKmrzOEacr57L9sUpOTeaGr8E3ixIQYqO7LTvlbDEL4"
-            },
-            "Export": {
-              "Name": "sls-ab-holistic-interview-portal-dev-UpdateApplicationStageLambdaFunctionQualifiedArn"
-            }
-          },
-          "CreateTestLambdaFunctionQualifiedArn": {
-            "Description": "Current Lambda function version",
-            "Value": {
-              "Ref": "CreateTestLambdaVersionGRQ8E8165qaxzT2jYRZwIGPl0jLrFTdU7xItcBTbk"
-            },
-            "Export": {
-              "Name": "sls-ab-holistic-interview-portal-dev-CreateTestLambdaFunctionQualifiedArn"
-            }
-          },
-          "GetTestLambdaFunctionQualifiedArn": {
-            "Description": "Current Lambda function version",
-            "Value": {
-              "Ref": "GetTestLambdaVersionNRowznxN8d899BFUltZEZpvYZLkPSTcC1w40XBfYPU"
-            },
-            "Export": {
-              "Name": "sls-ab-holistic-interview-portal-dev-GetTestLambdaFunctionQualifiedArn"
-            }
-          },
-          "SubmitTestLambdaFunctionQualifiedArn": {
-            "Description": "Current Lambda function version",
-            "Value": {
-              "Ref": "SubmitTestLambdaVersionsfn2ZwFgJlvSpawVQqBtrM6Y7lBZBPx6FoT6Bf0XXCk"
-            },
-            "Export": {
-              "Name": "sls-ab-holistic-interview-portal-dev-SubmitTestLambdaFunctionQualifiedArn"
-            }
-          },
           "GetUploadUrlLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "GetUploadUrlLambdaVersion8LGHjFTNZSLI9vMLCDEm2UeWBNJX5Vg7y04leAZsDs"
+              "Ref": "GetUploadUrlLambdaVersionaXtaVT2L3FHJHHoU78DUcOv9x3C9OApILLgDVr4sdA"
             },
             "Export": {
               "Name": "sls-ab-holistic-interview-portal-dev-GetUploadUrlLambdaFunctionQualifiedArn"
-            }
-          },
-          "SendNotificationLambdaFunctionQualifiedArn": {
-            "Description": "Current Lambda function version",
-            "Value": {
-              "Ref": "SendNotificationLambdaVersion3GiDpQPJPACPjXunclJVO2fabpUIQTRuPePede77s"
-            },
-            "Export": {
-              "Name": "sls-ab-holistic-interview-portal-dev-SendNotificationLambdaFunctionQualifiedArn"
-            }
-          },
-          "AuthorizerFuncLambdaFunctionQualifiedArn": {
-            "Description": "Current Lambda function version",
-            "Value": {
-              "Ref": "AuthorizerFuncLambdaVersionjYHSpvqOEqB8cN6pt01ew8LJ7MUEdfhLS6YgLQhIYsk"
-            },
-            "Export": {
-              "Name": "sls-ab-holistic-interview-portal-dev-AuthorizerFuncLambdaFunctionQualifiedArn"
             }
           },
           "ServiceEndpoint": {
@@ -4243,25 +1939,6 @@
             },
             "Export": {
               "Name": "sls-ab-holistic-interview-portal-dev-ServiceEndpoint"
-            }
-          },
-          "ApiGatewayRestApiId": {
-            "Value": {
-              "Ref": "ApiGatewayRestApi"
-            },
-            "Export": {
-              "Name": "ab-holistic-interview-portal-dev-ApiGatewayRestApiId"
-            }
-          },
-          "ApiGatewayRestApiRootResourceId": {
-            "Value": {
-              "Fn::GetAtt": [
-                "ApiGatewayRestApi",
-                "RootResourceId"
-              ]
-            },
-            "Export": {
-              "Name": "ab-holistic-interview-portal-dev-ApiGatewayRestApiRootResourceId"
             }
           }
         }
@@ -4351,20 +2028,6 @@
       "vpc": {}
     },
     "custom": {
-      "tablesNames": {
-        "jobs": "ab-holistic-interview-portal-jobs-dev",
-        "applicants": "ab-holistic-interview-portal-applicants-dev",
-        "applications": "ab-holistic-interview-portal-applications-dev",
-        "tests": "ab-holistic-interview-portal-tests-dev",
-        "testSubmissions": "ab-holistic-interview-portal-test-submissions-dev",
-        "notifications": "ab-holistic-interview-portal-notifications-dev"
-      },
-      "bucketNames": {
-        "resumes": "ab-holistic-interview-portal-resumes-dev",
-        "videos": "ab-holistic-interview-portal-videos-dev"
-      },
-      "cognitoUserPoolId": "your-user-pool-id",
-      "jwtSecret": "your-jwt-secret-key",
       "serverless-offline": {
         "httpPort": 3001,
         "lambdaPort": 3002
@@ -4416,7 +2079,7 @@
         "timeout": 30,
         "runtime": "nodejs18.x",
         "vpc": {},
-        "versionLogicalId": "LoginLambdaVersionJ5punDtrIolW1xBsTVW1WJEs6IuFS0HOU1MT6P0G8"
+        "versionLogicalId": "LoginLambdaVersioncQFgFQBvyfZH2K86MaOg34KsqivGqnvNszHxwyBmPcE"
       },
       "register": {
         "handler": "src/functions/auth/register.handler",
@@ -4458,7 +2121,7 @@
         "timeout": 30,
         "runtime": "nodejs18.x",
         "vpc": {},
-        "versionLogicalId": "RegisterLambdaVersionJoWwdo64bOQGkIvUL7LmbHy6TQAu051lxOOv7GqZQLU"
+        "versionLogicalId": "RegisterLambdaVersionV8S9w6QZbdISKOpzqwwJcGptxZkMkFx08AKgj0wydUQ"
       },
       "verify": {
         "handler": "src/functions/auth/verify.handler",
@@ -4500,7 +2163,7 @@
         "timeout": 30,
         "runtime": "nodejs18.x",
         "vpc": {},
-        "versionLogicalId": "VerifyLambdaVersionJsClg6u8l01f0zSDTJVybFW4TasjmsqGXLXqMyeDj9k"
+        "versionLogicalId": "VerifyLambdaVersiongSwurkVL4XuAVdzaf3Em2geu1amWTkXQtYCX6fR5c"
       },
       "createJob": {
         "handler": "src/functions/jobs/create.handler",
@@ -4526,14 +2189,6 @@
                 ],
                 "allowCredentials": false
               },
-              "authorizer": {
-                "name": "authorizerFunc",
-                "arn": {
-                  "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AuthorizerFuncLambdaPermissionApiGateway\"][\"Properties\"][\"FunctionName\"]"
-                },
-                "managedExternally": false,
-                "identitySource": "method.request.header.Authorization"
-              },
               "integration": "AWS_PROXY"
             }
           }
@@ -4550,7 +2205,7 @@
         "timeout": 30,
         "runtime": "nodejs18.x",
         "vpc": {},
-        "versionLogicalId": "CreateJobLambdaVersionwZVszGqI6VRPtOIePZL9cc5SrpPb5sa2d3Hnvxg"
+        "versionLogicalId": "CreateJobLambdaVersioneyTuGacn8ubGMrBOy8D25SANqo8q5EIQjl04lXPKkco"
       },
       "getJobs": {
         "handler": "src/functions/jobs/list.handler",
@@ -4592,7 +2247,7 @@
         "timeout": 30,
         "runtime": "nodejs18.x",
         "vpc": {},
-        "versionLogicalId": "GetJobsLambdaVersionzw7BLdHwM3aftCGk4M34R51heqbrbRtEnmfLaasE4uo"
+        "versionLogicalId": "GetJobsLambdaVersion7L9j1yptzHqmATXaprU8I3yDlwP2p6bGc9GQokhDY"
       },
       "getJob": {
         "handler": "src/functions/jobs/get.handler",
@@ -4634,7 +2289,7 @@
         "timeout": 30,
         "runtime": "nodejs18.x",
         "vpc": {},
-        "versionLogicalId": "GetJobLambdaVersionwdsRJudiphYDZbBepn2pHEPagfU02X1yHNcZxlM8"
+        "versionLogicalId": "GetJobLambdaVersionLGFXF6o9wL0g2f8NFyeohjL8gRTd9Mce6OyggKXXUU"
       },
       "updateJob": {
         "handler": "src/functions/jobs/update.handler",
@@ -4660,14 +2315,6 @@
                 ],
                 "allowCredentials": false
               },
-              "authorizer": {
-                "name": "authorizerFunc",
-                "arn": {
-                  "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AuthorizerFuncLambdaPermissionApiGateway\"][\"Properties\"][\"FunctionName\"]"
-                },
-                "managedExternally": false,
-                "identitySource": "method.request.header.Authorization"
-              },
               "integration": "AWS_PROXY"
             }
           }
@@ -4684,7 +2331,7 @@
         "timeout": 30,
         "runtime": "nodejs18.x",
         "vpc": {},
-        "versionLogicalId": "UpdateJobLambdaVersionvU5g5EyZ2VgJIlLeVVFcCskFqNFWxuc3XvDky3Wxo"
+        "versionLogicalId": "UpdateJobLambdaVersionxQefoKCLfA4ZFPkICbMXJxUSRBkOqyGP28dvxv8etPE"
       },
       "deleteJob": {
         "handler": "src/functions/jobs/delete.handler",
@@ -4710,14 +2357,6 @@
                 ],
                 "allowCredentials": false
               },
-              "authorizer": {
-                "name": "authorizerFunc",
-                "arn": {
-                  "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AuthorizerFuncLambdaPermissionApiGateway\"][\"Properties\"][\"FunctionName\"]"
-                },
-                "managedExternally": false,
-                "identitySource": "method.request.header.Authorization"
-              },
               "integration": "AWS_PROXY"
             }
           }
@@ -4734,357 +2373,7 @@
         "timeout": 30,
         "runtime": "nodejs18.x",
         "vpc": {},
-        "versionLogicalId": "DeleteJobLambdaVersioneVbpoSXB02BldWxvY25uyxCUwSLPktxYOw9OUd02SXM"
-      },
-      "createApplication": {
-        "handler": "src/functions/applications/create.handler",
-        "events": [
-          {
-            "http": {
-              "path": "applications",
-              "method": "post",
-              "cors": {
-                "origin": "*",
-                "methods": [
-                  "OPTIONS",
-                  "POST"
-                ],
-                "headers": [
-                  "Content-Type",
-                  "X-Amz-Date",
-                  "Authorization",
-                  "X-Api-Key",
-                  "X-Amz-Security-Token",
-                  "X-Amz-User-Agent",
-                  "X-Amzn-Trace-Id"
-                ],
-                "allowCredentials": false
-              },
-              "authorizer": {
-                "name": "authorizerFunc",
-                "arn": {
-                  "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AuthorizerFuncLambdaPermissionApiGateway\"][\"Properties\"][\"FunctionName\"]"
-                },
-                "managedExternally": false,
-                "identitySource": "method.request.header.Authorization"
-              },
-              "integration": "AWS_PROXY"
-            }
-          }
-        ],
-        "name": "ab-holistic-interview-portal-dev-createApplication",
-        "package": {
-          "exclude": [
-            "node_modules/serverless-plugin-typescript"
-          ],
-          "include": [],
-          "patterns": []
-        },
-        "memory": 256,
-        "timeout": 30,
-        "runtime": "nodejs18.x",
-        "vpc": {},
-        "versionLogicalId": "CreateApplicationLambdaVersion6uq7aRKAdftbAYfwyb2ifa2SayjFVAF8oIkB2tC8"
-      },
-      "getApplications": {
-        "handler": "src/functions/applications/list.handler",
-        "events": [
-          {
-            "http": {
-              "path": "applications",
-              "method": "get",
-              "cors": {
-                "origin": "*",
-                "methods": [
-                  "OPTIONS",
-                  "GET"
-                ],
-                "headers": [
-                  "Content-Type",
-                  "X-Amz-Date",
-                  "Authorization",
-                  "X-Api-Key",
-                  "X-Amz-Security-Token",
-                  "X-Amz-User-Agent",
-                  "X-Amzn-Trace-Id"
-                ],
-                "allowCredentials": false
-              },
-              "authorizer": {
-                "name": "authorizerFunc",
-                "arn": {
-                  "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AuthorizerFuncLambdaPermissionApiGateway\"][\"Properties\"][\"FunctionName\"]"
-                },
-                "managedExternally": false,
-                "identitySource": "method.request.header.Authorization"
-              },
-              "integration": "AWS_PROXY"
-            }
-          }
-        ],
-        "name": "ab-holistic-interview-portal-dev-getApplications",
-        "package": {
-          "exclude": [
-            "node_modules/serverless-plugin-typescript"
-          ],
-          "include": [],
-          "patterns": []
-        },
-        "memory": 256,
-        "timeout": 30,
-        "runtime": "nodejs18.x",
-        "vpc": {},
-        "versionLogicalId": "GetApplicationsLambdaVersionMVMR7PHjtiMHJ2Cv7EmdPLjdHyB5DblhpyIOBI8EhbU"
-      },
-      "getApplication": {
-        "handler": "src/functions/applications/get.handler",
-        "events": [
-          {
-            "http": {
-              "path": "applications/{id}",
-              "method": "get",
-              "cors": {
-                "origin": "*",
-                "methods": [
-                  "OPTIONS",
-                  "GET"
-                ],
-                "headers": [
-                  "Content-Type",
-                  "X-Amz-Date",
-                  "Authorization",
-                  "X-Api-Key",
-                  "X-Amz-Security-Token",
-                  "X-Amz-User-Agent",
-                  "X-Amzn-Trace-Id"
-                ],
-                "allowCredentials": false
-              },
-              "authorizer": {
-                "name": "authorizerFunc",
-                "arn": {
-                  "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AuthorizerFuncLambdaPermissionApiGateway\"][\"Properties\"][\"FunctionName\"]"
-                },
-                "managedExternally": false,
-                "identitySource": "method.request.header.Authorization"
-              },
-              "integration": "AWS_PROXY"
-            }
-          }
-        ],
-        "name": "ab-holistic-interview-portal-dev-getApplication",
-        "package": {
-          "exclude": [
-            "node_modules/serverless-plugin-typescript"
-          ],
-          "include": [],
-          "patterns": []
-        },
-        "memory": 256,
-        "timeout": 30,
-        "runtime": "nodejs18.x",
-        "vpc": {},
-        "versionLogicalId": "GetApplicationLambdaVersion4vmsxlRJBG6l7N5yQtaWvvRYiGcOQybFnbkZ41zcCE"
-      },
-      "updateApplicationStage": {
-        "handler": "src/functions/applications/updateStage.handler",
-        "events": [
-          {
-            "http": {
-              "path": "applications/{id}/stage",
-              "method": "put",
-              "cors": {
-                "origin": "*",
-                "methods": [
-                  "OPTIONS",
-                  "PUT"
-                ],
-                "headers": [
-                  "Content-Type",
-                  "X-Amz-Date",
-                  "Authorization",
-                  "X-Api-Key",
-                  "X-Amz-Security-Token",
-                  "X-Amz-User-Agent",
-                  "X-Amzn-Trace-Id"
-                ],
-                "allowCredentials": false
-              },
-              "authorizer": {
-                "name": "authorizerFunc",
-                "arn": {
-                  "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AuthorizerFuncLambdaPermissionApiGateway\"][\"Properties\"][\"FunctionName\"]"
-                },
-                "managedExternally": false,
-                "identitySource": "method.request.header.Authorization"
-              },
-              "integration": "AWS_PROXY"
-            }
-          }
-        ],
-        "name": "ab-holistic-interview-portal-dev-updateApplicationStage",
-        "package": {
-          "exclude": [
-            "node_modules/serverless-plugin-typescript"
-          ],
-          "include": [],
-          "patterns": []
-        },
-        "memory": 256,
-        "timeout": 30,
-        "runtime": "nodejs18.x",
-        "vpc": {},
-        "versionLogicalId": "UpdateApplicationStageLambdaVersionKmrzOEacr57L9sUpOTeaGr8E3ixIQYqO7LTvlbDEL4"
-      },
-      "createTest": {
-        "handler": "src/functions/tests/create.handler",
-        "events": [
-          {
-            "http": {
-              "path": "tests",
-              "method": "post",
-              "cors": {
-                "origin": "*",
-                "methods": [
-                  "OPTIONS",
-                  "POST"
-                ],
-                "headers": [
-                  "Content-Type",
-                  "X-Amz-Date",
-                  "Authorization",
-                  "X-Api-Key",
-                  "X-Amz-Security-Token",
-                  "X-Amz-User-Agent",
-                  "X-Amzn-Trace-Id"
-                ],
-                "allowCredentials": false
-              },
-              "authorizer": {
-                "name": "authorizerFunc",
-                "arn": {
-                  "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AuthorizerFuncLambdaPermissionApiGateway\"][\"Properties\"][\"FunctionName\"]"
-                },
-                "managedExternally": false,
-                "identitySource": "method.request.header.Authorization"
-              },
-              "integration": "AWS_PROXY"
-            }
-          }
-        ],
-        "name": "ab-holistic-interview-portal-dev-createTest",
-        "package": {
-          "exclude": [
-            "node_modules/serverless-plugin-typescript"
-          ],
-          "include": [],
-          "patterns": []
-        },
-        "memory": 256,
-        "timeout": 30,
-        "runtime": "nodejs18.x",
-        "vpc": {},
-        "versionLogicalId": "CreateTestLambdaVersionGRQ8E8165qaxzT2jYRZwIGPl0jLrFTdU7xItcBTbk"
-      },
-      "getTest": {
-        "handler": "src/functions/tests/get.handler",
-        "events": [
-          {
-            "http": {
-              "path": "tests/{id}",
-              "method": "get",
-              "cors": {
-                "origin": "*",
-                "methods": [
-                  "OPTIONS",
-                  "GET"
-                ],
-                "headers": [
-                  "Content-Type",
-                  "X-Amz-Date",
-                  "Authorization",
-                  "X-Api-Key",
-                  "X-Amz-Security-Token",
-                  "X-Amz-User-Agent",
-                  "X-Amzn-Trace-Id"
-                ],
-                "allowCredentials": false
-              },
-              "authorizer": {
-                "name": "authorizerFunc",
-                "arn": {
-                  "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AuthorizerFuncLambdaPermissionApiGateway\"][\"Properties\"][\"FunctionName\"]"
-                },
-                "managedExternally": false,
-                "identitySource": "method.request.header.Authorization"
-              },
-              "integration": "AWS_PROXY"
-            }
-          }
-        ],
-        "name": "ab-holistic-interview-portal-dev-getTest",
-        "package": {
-          "exclude": [
-            "node_modules/serverless-plugin-typescript"
-          ],
-          "include": [],
-          "patterns": []
-        },
-        "memory": 256,
-        "timeout": 30,
-        "runtime": "nodejs18.x",
-        "vpc": {},
-        "versionLogicalId": "GetTestLambdaVersionNRowznxN8d899BFUltZEZpvYZLkPSTcC1w40XBfYPU"
-      },
-      "submitTest": {
-        "handler": "src/functions/tests/submit.handler",
-        "events": [
-          {
-            "http": {
-              "path": "tests/{id}/submit",
-              "method": "post",
-              "cors": {
-                "origin": "*",
-                "methods": [
-                  "OPTIONS",
-                  "POST"
-                ],
-                "headers": [
-                  "Content-Type",
-                  "X-Amz-Date",
-                  "Authorization",
-                  "X-Api-Key",
-                  "X-Amz-Security-Token",
-                  "X-Amz-User-Agent",
-                  "X-Amzn-Trace-Id"
-                ],
-                "allowCredentials": false
-              },
-              "authorizer": {
-                "name": "authorizerFunc",
-                "arn": {
-                  "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AuthorizerFuncLambdaPermissionApiGateway\"][\"Properties\"][\"FunctionName\"]"
-                },
-                "managedExternally": false,
-                "identitySource": "method.request.header.Authorization"
-              },
-              "integration": "AWS_PROXY"
-            }
-          }
-        ],
-        "name": "ab-holistic-interview-portal-dev-submitTest",
-        "package": {
-          "exclude": [
-            "node_modules/serverless-plugin-typescript"
-          ],
-          "include": [],
-          "patterns": []
-        },
-        "memory": 256,
-        "timeout": 30,
-        "runtime": "nodejs18.x",
-        "vpc": {},
-        "versionLogicalId": "SubmitTestLambdaVersionsfn2ZwFgJlvSpawVQqBtrM6Y7lBZBPx6FoT6Bf0XXCk"
+        "versionLogicalId": "DeleteJobLambdaVersionfZO1IOoeyP8to2yIBiMn1YVikBuVHpQtxcuuLyKJE"
       },
       "getUploadUrl": {
         "handler": "src/functions/files/getUploadUrl.handler",
@@ -5110,14 +2399,6 @@
                 ],
                 "allowCredentials": false
               },
-              "authorizer": {
-                "name": "authorizerFunc",
-                "arn": {
-                  "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AuthorizerFuncLambdaPermissionApiGateway\"][\"Properties\"][\"FunctionName\"]"
-                },
-                "managedExternally": false,
-                "identitySource": "method.request.header.Authorization"
-              },
               "integration": "AWS_PROXY"
             }
           }
@@ -5134,499 +2415,11 @@
         "timeout": 30,
         "runtime": "nodejs18.x",
         "vpc": {},
-        "versionLogicalId": "GetUploadUrlLambdaVersion8LGHjFTNZSLI9vMLCDEm2UeWBNJX5Vg7y04leAZsDs"
-      },
-      "sendNotification": {
-        "handler": "src/functions/notifications/send.handler",
-        "events": [
-          {
-            "http": {
-              "path": "notifications/send",
-              "method": "post",
-              "cors": {
-                "origin": "*",
-                "methods": [
-                  "OPTIONS",
-                  "POST"
-                ],
-                "headers": [
-                  "Content-Type",
-                  "X-Amz-Date",
-                  "Authorization",
-                  "X-Api-Key",
-                  "X-Amz-Security-Token",
-                  "X-Amz-User-Agent",
-                  "X-Amzn-Trace-Id"
-                ],
-                "allowCredentials": false
-              },
-              "authorizer": {
-                "name": "authorizerFunc",
-                "arn": {
-                  "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"AuthorizerFuncLambdaPermissionApiGateway\"][\"Properties\"][\"FunctionName\"]"
-                },
-                "managedExternally": false,
-                "identitySource": "method.request.header.Authorization"
-              },
-              "integration": "AWS_PROXY"
-            }
-          }
-        ],
-        "name": "ab-holistic-interview-portal-dev-sendNotification",
-        "package": {
-          "exclude": [
-            "node_modules/serverless-plugin-typescript"
-          ],
-          "include": [],
-          "patterns": []
-        },
-        "memory": 256,
-        "timeout": 30,
-        "runtime": "nodejs18.x",
-        "vpc": {},
-        "versionLogicalId": "SendNotificationLambdaVersion3GiDpQPJPACPjXunclJVO2fabpUIQTRuPePede77s"
-      },
-      "authorizerFunc": {
-        "handler": "src/functions/auth/authorizer.handler",
-        "events": [],
-        "name": "ab-holistic-interview-portal-dev-authorizerFunc",
-        "package": {
-          "exclude": [
-            "node_modules/serverless-plugin-typescript"
-          ],
-          "include": [],
-          "patterns": []
-        },
-        "memory": 256,
-        "timeout": 30,
-        "runtime": "nodejs18.x",
-        "vpc": {},
-        "versionLogicalId": "AuthorizerFuncLambdaVersionjYHSpvqOEqB8cN6pt01ew8LJ7MUEdfhLS6YgLQhIYsk"
-      }
-    },
-    "resources": {
-      "Resources": {
-        "JobsTable": {
-          "Type": "AWS::DynamoDB::Table",
-          "Properties": {
-            "TableName": "ab-holistic-interview-portal-jobs-dev",
-            "AttributeDefinitions": [
-              {
-                "AttributeName": "jobId",
-                "AttributeType": "S"
-              },
-              {
-                "AttributeName": "status",
-                "AttributeType": "S"
-              },
-              {
-                "AttributeName": "createdAt",
-                "AttributeType": "S"
-              }
-            ],
-            "KeySchema": [
-              {
-                "AttributeName": "jobId",
-                "KeyType": "HASH"
-              }
-            ],
-            "GlobalSecondaryIndexes": [
-              {
-                "IndexName": "StatusIndex",
-                "KeySchema": [
-                  {
-                    "AttributeName": "status",
-                    "KeyType": "HASH"
-                  },
-                  {
-                    "AttributeName": "createdAt",
-                    "KeyType": "RANGE"
-                  }
-                ],
-                "Projection": {
-                  "ProjectionType": "ALL"
-                },
-                "ProvisionedThroughput": {
-                  "ReadCapacityUnits": 5,
-                  "WriteCapacityUnits": 5
-                }
-              }
-            ],
-            "ProvisionedThroughput": {
-              "ReadCapacityUnits": 5,
-              "WriteCapacityUnits": 5
-            }
-          }
-        },
-        "ApplicantsTable": {
-          "Type": "AWS::DynamoDB::Table",
-          "Properties": {
-            "TableName": "ab-holistic-interview-portal-applicants-dev",
-            "AttributeDefinitions": [
-              {
-                "AttributeName": "applicantId",
-                "AttributeType": "S"
-              },
-              {
-                "AttributeName": "email",
-                "AttributeType": "S"
-              }
-            ],
-            "KeySchema": [
-              {
-                "AttributeName": "applicantId",
-                "KeyType": "HASH"
-              }
-            ],
-            "GlobalSecondaryIndexes": [
-              {
-                "IndexName": "EmailIndex",
-                "KeySchema": [
-                  {
-                    "AttributeName": "email",
-                    "KeyType": "HASH"
-                  }
-                ],
-                "Projection": {
-                  "ProjectionType": "ALL"
-                },
-                "ProvisionedThroughput": {
-                  "ReadCapacityUnits": 5,
-                  "WriteCapacityUnits": 5
-                }
-              }
-            ],
-            "ProvisionedThroughput": {
-              "ReadCapacityUnits": 5,
-              "WriteCapacityUnits": 5
-            }
-          }
-        },
-        "ApplicationsTable": {
-          "Type": "AWS::DynamoDB::Table",
-          "Properties": {
-            "TableName": "ab-holistic-interview-portal-applications-dev",
-            "AttributeDefinitions": [
-              {
-                "AttributeName": "applicationId",
-                "AttributeType": "S"
-              },
-              {
-                "AttributeName": "jobId",
-                "AttributeType": "S"
-              },
-              {
-                "AttributeName": "applicantId",
-                "AttributeType": "S"
-              },
-              {
-                "AttributeName": "stage",
-                "AttributeType": "S"
-              }
-            ],
-            "KeySchema": [
-              {
-                "AttributeName": "applicationId",
-                "KeyType": "HASH"
-              }
-            ],
-            "GlobalSecondaryIndexes": [
-              {
-                "IndexName": "JobIndex",
-                "KeySchema": [
-                  {
-                    "AttributeName": "jobId",
-                    "KeyType": "HASH"
-                  },
-                  {
-                    "AttributeName": "stage",
-                    "KeyType": "RANGE"
-                  }
-                ],
-                "Projection": {
-                  "ProjectionType": "ALL"
-                },
-                "ProvisionedThroughput": {
-                  "ReadCapacityUnits": 5,
-                  "WriteCapacityUnits": 5
-                }
-              },
-              {
-                "IndexName": "ApplicantIndex",
-                "KeySchema": [
-                  {
-                    "AttributeName": "applicantId",
-                    "KeyType": "HASH"
-                  }
-                ],
-                "Projection": {
-                  "ProjectionType": "ALL"
-                },
-                "ProvisionedThroughput": {
-                  "ReadCapacityUnits": 5,
-                  "WriteCapacityUnits": 5
-                }
-              }
-            ],
-            "ProvisionedThroughput": {
-              "ReadCapacityUnits": 5,
-              "WriteCapacityUnits": 5
-            }
-          }
-        },
-        "TestsTable": {
-          "Type": "AWS::DynamoDB::Table",
-          "Properties": {
-            "TableName": "ab-holistic-interview-portal-tests-dev",
-            "AttributeDefinitions": [
-              {
-                "AttributeName": "testId",
-                "AttributeType": "S"
-              },
-              {
-                "AttributeName": "jobId",
-                "AttributeType": "S"
-              }
-            ],
-            "KeySchema": [
-              {
-                "AttributeName": "testId",
-                "KeyType": "HASH"
-              }
-            ],
-            "GlobalSecondaryIndexes": [
-              {
-                "IndexName": "JobIndex",
-                "KeySchema": [
-                  {
-                    "AttributeName": "jobId",
-                    "KeyType": "HASH"
-                  }
-                ],
-                "Projection": {
-                  "ProjectionType": "ALL"
-                },
-                "ProvisionedThroughput": {
-                  "ReadCapacityUnits": 5,
-                  "WriteCapacityUnits": 5
-                }
-              }
-            ],
-            "ProvisionedThroughput": {
-              "ReadCapacityUnits": 5,
-              "WriteCapacityUnits": 5
-            }
-          }
-        },
-        "TestSubmissionsTable": {
-          "Type": "AWS::DynamoDB::Table",
-          "Properties": {
-            "TableName": "ab-holistic-interview-portal-test-submissions-dev",
-            "AttributeDefinitions": [
-              {
-                "AttributeName": "submissionId",
-                "AttributeType": "S"
-              },
-              {
-                "AttributeName": "testId",
-                "AttributeType": "S"
-              },
-              {
-                "AttributeName": "applicantId",
-                "AttributeType": "S"
-              }
-            ],
-            "KeySchema": [
-              {
-                "AttributeName": "submissionId",
-                "KeyType": "HASH"
-              }
-            ],
-            "GlobalSecondaryIndexes": [
-              {
-                "IndexName": "TestIndex",
-                "KeySchema": [
-                  {
-                    "AttributeName": "testId",
-                    "KeyType": "HASH"
-                  }
-                ],
-                "Projection": {
-                  "ProjectionType": "ALL"
-                },
-                "ProvisionedThroughput": {
-                  "ReadCapacityUnits": 5,
-                  "WriteCapacityUnits": 5
-                }
-              },
-              {
-                "IndexName": "ApplicantIndex",
-                "KeySchema": [
-                  {
-                    "AttributeName": "applicantId",
-                    "KeyType": "HASH"
-                  }
-                ],
-                "Projection": {
-                  "ProjectionType": "ALL"
-                },
-                "ProvisionedThroughput": {
-                  "ReadCapacityUnits": 5,
-                  "WriteCapacityUnits": 5
-                }
-              }
-            ],
-            "ProvisionedThroughput": {
-              "ReadCapacityUnits": 5,
-              "WriteCapacityUnits": 5
-            }
-          }
-        },
-        "NotificationsTable": {
-          "Type": "AWS::DynamoDB::Table",
-          "Properties": {
-            "TableName": "ab-holistic-interview-portal-notifications-dev",
-            "AttributeDefinitions": [
-              {
-                "AttributeName": "notificationId",
-                "AttributeType": "S"
-              },
-              {
-                "AttributeName": "recipientId",
-                "AttributeType": "S"
-              }
-            ],
-            "KeySchema": [
-              {
-                "AttributeName": "notificationId",
-                "KeyType": "HASH"
-              }
-            ],
-            "GlobalSecondaryIndexes": [
-              {
-                "IndexName": "RecipientIndex",
-                "KeySchema": [
-                  {
-                    "AttributeName": "recipientId",
-                    "KeyType": "HASH"
-                  }
-                ],
-                "Projection": {
-                  "ProjectionType": "ALL"
-                },
-                "ProvisionedThroughput": {
-                  "ReadCapacityUnits": 5,
-                  "WriteCapacityUnits": 5
-                }
-              }
-            ],
-            "ProvisionedThroughput": {
-              "ReadCapacityUnits": 5,
-              "WriteCapacityUnits": 5
-            }
-          }
-        },
-        "ResumesBucket": {
-          "Type": "AWS::S3::Bucket",
-          "Properties": {
-            "BucketName": "ab-holistic-interview-portal-resumes-dev",
-            "PublicAccessBlockConfiguration": {
-              "BlockPublicAcls": true,
-              "BlockPublicPolicy": true,
-              "IgnorePublicAcls": true,
-              "RestrictPublicBuckets": true
-            },
-            "BucketEncryption": {
-              "ServerSideEncryptionConfiguration": [
-                {
-                  "ServerSideEncryptionByDefault": {
-                    "SSEAlgorithm": "AES256"
-                  }
-                }
-              ]
-            },
-            "VersioningConfiguration": {
-              "Status": "Enabled"
-            },
-            "LifecycleConfiguration": {
-              "Rules": [
-                {
-                  "Id": "DeleteOldVersions",
-                  "Status": "Enabled",
-                  "NoncurrentVersionExpirationInDays": 30
-                }
-              ]
-            }
-          }
-        },
-        "VideosBucket": {
-          "Type": "AWS::S3::Bucket",
-          "Properties": {
-            "BucketName": "ab-holistic-interview-portal-videos-dev",
-            "PublicAccessBlockConfiguration": {
-              "BlockPublicAcls": true,
-              "BlockPublicPolicy": true,
-              "IgnorePublicAcls": true,
-              "RestrictPublicBuckets": true
-            },
-            "BucketEncryption": {
-              "ServerSideEncryptionConfiguration": [
-                {
-                  "ServerSideEncryptionByDefault": {
-                    "SSEAlgorithm": "AES256"
-                  }
-                }
-              ]
-            },
-            "VersioningConfiguration": {
-              "Status": "Enabled"
-            },
-            "LifecycleConfiguration": {
-              "Rules": [
-                {
-                  "Id": "DeleteOldVersions",
-                  "Status": "Enabled",
-                  "NoncurrentVersionExpirationInDays": 30
-                },
-                {
-                  "Id": "ArchiveOldVideos",
-                  "Status": "Enabled",
-                  "Transitions": [
-                    {
-                      "StorageClass": "GLACIER",
-                      "TransitionInDays": 90
-                    }
-                  ]
-                }
-              ]
-            }
-          }
-        }
-      },
-      "Outputs": {
-        "ApiGatewayRestApiId": {
-          "Value": {
-            "Ref": "ApiGatewayRestApi"
-          },
-          "Export": {
-            "Name": "ab-holistic-interview-portal-dev-ApiGatewayRestApiId"
-          }
-        },
-        "ApiGatewayRestApiRootResourceId": {
-          "Value": {
-            "Fn::GetAtt": [
-              "ApiGatewayRestApi",
-              "RootResourceId"
-            ]
-          },
-          "Export": {
-            "Name": "ab-holistic-interview-portal-dev-ApiGatewayRestApiRootResourceId"
-          }
-        }
+        "versionLogicalId": "GetUploadUrlLambdaVersionaXtaVT2L3FHJHHoU78DUcOv9x3C9OApILLgDVr4sdA"
       }
     },
     "configValidationMode": "warn",
-    "serviceFilename": "serverless.yml",
+    "serviceFilename": "serverless-simple.yml",
     "initialServerlessConfig": {
       "service": "ab-holistic-interview-portal",
       "frameworkVersion": "3",
@@ -5641,9 +2434,6 @@
       },
       "functions": {
         "$ref": "$[\"service\"][\"functions\"]"
-      },
-      "resources": {
-        "$ref": "$[\"service\"][\"resources\"]"
       }
     },
     "layers": {},
@@ -5651,7 +2441,7 @@
     "artifact": "C:\\Users\\akabo\\OneDrive\\Documents\\abhh\\ab-holistic-portal\\backend\\.build\\.serverless\\ab-holistic-interview-portal.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/ab-holistic-interview-portal/dev/1757978021759-2025-09-15T23:13:41.759Z",
+    "artifactDirectoryName": "serverless/ab-holistic-interview-portal/dev/1758104280004-2025-09-17T10:18:00.004Z",
     "artifact": "ab-holistic-interview-portal.zip"
   }
 }

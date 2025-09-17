@@ -1,5 +1,15 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { AuthContextType, AuthState, User, LoginCredentials, SignupData } from '../types/auth';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from 'react';
+import {
+  AuthContextType,
+  AuthState,
+  User,
+  LoginCredentials,
+  SignupData,
+  PasswordResetData,
+  AuthError,
+  AuthErrorType
+} from '../types/auth';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 // import awsConfig from '../config/aws'; // Temporarily disabled for development
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -8,6 +18,9 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+/**
+ * Enhanced AuthProvider with improved error handling and type safety
+ */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
@@ -16,11 +29,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     error: null,
   });
 
-  const setError = (error: string | null) => {
-    setAuthState(prev => ({ ...prev, error, isLoading: false }));
-  };
+  const { handleError: logError } = useErrorHandler({
+    context: 'AuthContext',
+    logErrors: true,
+  });
 
-  const setUser = (user: User | null) => {
+  /**
+   * Create an authentication error with proper typing
+   */
+  const createAuthError = useCallback((type: AuthErrorType, message: string, details?: Record<string, unknown>): AuthError => {
+    return { type, message, details };
+  }, []);
+
+  /**
+   * Set error state with proper error handling
+   */
+  const setError = useCallback((error: string | AuthError | null) => {
+    let errorMessage: string | null = null;
+
+    if (error) {
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else {
+        errorMessage = error.message;
+        // Log the full error object for debugging
+        logError(new Error(`Auth Error [${error.type}]: ${error.message}`));
+      }
+    }
+
+    setAuthState(prev => ({ ...prev, error: errorMessage, isLoading: false }));
+  }, [logError]);
+
+  /**
+   * Set user with proper state management
+   */
+  const setUser = useCallback((user: User | null) => {
     setAuthState(prev => ({
       ...prev,
       user,
@@ -28,35 +71,80 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       isLoading: false,
       error: null,
     }));
-  };
+  }, []);
 
-  // Mock authentication for development
-  const refreshAuth = async () => {
+  /**
+   * Set loading state
+   */
+  const setLoading = useCallback((isLoading: boolean) => {
+    setAuthState(prev => ({ ...prev, isLoading }));
+  }, []);
+
+  /**
+   * Parse stored user data with validation
+   */
+  const parseStoredUser = useCallback((storedData: string): User | null => {
     try {
-      setAuthState(prev => ({ ...prev, isLoading: true }));
+      const parsed = JSON.parse(storedData);
+
+      // Validate required user properties
+      if (!parsed.id || !parsed.email || !parsed.role) {
+        throw new Error('Invalid user data structure');
+      }
+
+      return parsed as User;
+    } catch (error) {
+      logError(error instanceof Error ? error : new Error('Failed to parse stored user data'));
+      return null;
+    }
+  }, [logError]);
+
+  /**
+   * Refresh authentication state from storage
+   */
+  const refreshAuth = useCallback(async () => {
+    try {
+      setLoading(true);
 
       // Check localStorage for demo user
       const storedUser = localStorage.getItem('demo-user');
       if (storedUser) {
-        const user = JSON.parse(storedUser);
+        const user = parseStoredUser(storedUser);
         setUser(user);
       } else {
         setUser(null);
       }
     } catch (error) {
+      const authError = createAuthError(
+        'unknown_error',
+        'Failed to refresh authentication state',
+        { originalError: error }
+      );
+      setError(authError);
       setUser(null);
     }
-  };
+  }, [setLoading, parseStoredUser, setUser, createAuthError, setError]);
 
-  const login = async (credentials: LoginCredentials) => {
+  /**
+   * Login with enhanced error handling
+   */
+  const login = useCallback(async (credentials: LoginCredentials) => {
     try {
-      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+      setLoading(true);
+      setError(null);
+
+      // Validate credentials
+      if (!credentials.email || !credentials.password) {
+        throw createAuthError('invalid_credentials', 'Email and password are required');
+      }
 
       // Mock login - in production this would use AWS Cognito
       await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
 
-      // Demo credentials
+      // Demo credentials with enhanced user data
       let user: User;
+      const currentTime = new Date().toISOString();
+
       if (credentials.email === 'admin@abholistic.com') {
         user = {
           id: 'admin-1',
@@ -64,96 +152,261 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           name: 'Admin User',
           firstName: 'Admin',
           lastName: 'User',
-          role: 'admin'
+          role: 'admin',
+          profileStatus: 'verified',
+          groups: ['admin', 'users'],
+          createdAt: currentTime,
+          updatedAt: currentTime,
+          lastLogin: currentTime,
         };
       } else {
         user = {
-          id: 'applicant-1',
+          id: `applicant-${Date.now()}`,
           email: credentials.email,
           name: 'Test Applicant',
           firstName: 'Test',
           lastName: 'Applicant',
-          role: 'applicant'
+          role: 'applicant',
+          profileStatus: 'verified',
+          groups: ['applicant'],
+          createdAt: currentTime,
+          updatedAt: currentTime,
+          lastLogin: currentTime,
         };
       }
 
-      localStorage.setItem('demo-user', JSON.stringify(user));
-      setUser(user);
-    } catch (error: any) {
-      console.error('Login error:', error);
-      setError(error.message || 'Login failed');
-    }
-  };
+      // Store user data
+      try {
+        localStorage.setItem('demo-user', JSON.stringify(user));
+      } catch (storageError) {
+        logError(storageError instanceof Error ? storageError : new Error('Failed to store user data'));
+        // Continue with login even if storage fails
+      }
 
-  const signup = async (data: SignupData) => {
+      setUser(user);
+    } catch (error) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        const authError = createAuthError('unknown_error', 'Login failed');
+        setError(authError);
+      }
+    }
+  }, [setLoading, setError, createAuthError, logError, setUser]);
+
+  /**
+   * Signup with enhanced validation and error handling
+   */
+  const signup = useCallback(async (data: SignupData) => {
     try {
-      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+      setLoading(true);
+      setError(null);
+
+      // Validate signup data
+      if (!data.email || !data.password || !data.firstName || !data.lastName) {
+        throw createAuthError('invalid_credentials', 'All fields are required for signup');
+      }
 
       // Mock signup
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      setAuthState(prev => ({ ...prev, isLoading: false }));
-    } catch (error: any) {
-      console.error('Signup error:', error);
-      setError(error.message || 'Signup failed');
+      setLoading(false);
+    } catch (error) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        const authError = createAuthError('unknown_error', 'Signup failed');
+        setError(authError);
+      }
     }
-  };
+  }, [setLoading, setError, createAuthError]);
 
-  const logout = async () => {
+  /**
+   * Logout with proper cleanup
+   */
+  const logout = useCallback(async () => {
     try {
-      localStorage.removeItem('demo-user');
+      setLoading(true);
+
+      // Clear stored user data
+      try {
+        localStorage.removeItem('demo-user');
+      } catch (storageError) {
+        logError(storageError instanceof Error ? storageError : new Error('Failed to clear user data'));
+        // Continue with logout even if storage clear fails
+      }
+
       setUser(null);
-    } catch (error: any) {
-      console.error('Logout error:', error);
-      setError(error.message || 'Logout failed');
+    } catch (error) {
+      const authError = createAuthError('unknown_error', 'Logout failed');
+      setError(authError);
     }
-  };
+  }, [setLoading, logError, setUser, createAuthError, setError]);
 
-  const confirmSignup = async (email: string, code: string) => {
+  /**
+   * Confirm signup with validation
+   */
+  const confirmSignup = useCallback(async (email: string, code: string) => {
     try {
-      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+      setLoading(true);
+      setError(null);
+
+      if (!email || !code) {
+        throw createAuthError('invalid_credentials', 'Email and confirmation code are required');
+      }
+
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setAuthState(prev => ({ ...prev, isLoading: false }));
-    } catch (error: any) {
-      console.error('Confirm signup error:', error);
-      setError(error.message || 'Confirmation failed');
+      setLoading(false);
+    } catch (error) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        const authError = createAuthError('unknown_error', 'Confirmation failed');
+        setError(authError);
+      }
     }
-  };
+  }, [setLoading, setError, createAuthError]);
 
-  const resendConfirmation = async (email: string) => {
+  /**
+   * Resend confirmation code
+   */
+  const resendConfirmation = useCallback(async (email: string) => {
     try {
+      if (!email) {
+        throw createAuthError('invalid_credentials', 'Email is required');
+      }
+
       await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (error: any) {
-      console.error('Resend confirmation error:', error);
-      setError(error.message || 'Resend confirmation failed');
+    } catch (error) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        const authError = createAuthError('unknown_error', 'Resend confirmation failed');
+        setError(authError);
+      }
     }
-  };
+  }, [setError, createAuthError]);
 
-  const forgotPassword = async (email: string) => {
+  /**
+   * Request password reset
+   */
+  const forgotPassword = useCallback(async (email: string) => {
     try {
+      if (!email) {
+        throw createAuthError('invalid_credentials', 'Email is required');
+      }
+
       await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (error: any) {
-      console.error('Forgot password error:', error);
-      setError(error.message || 'Password reset request failed');
+    } catch (error) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        const authError = createAuthError('unknown_error', 'Password reset request failed');
+        setError(authError);
+      }
     }
-  };
+  }, [setError, createAuthError]);
 
-  const resetPassword = async (email: string, code: string, newPassword: string) => {
+  /**
+   * Reset password with new interface
+   */
+  const resetPassword = useCallback(async (data: PasswordResetData) => {
     try {
-      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+      setLoading(true);
+      setError(null);
+
+      if (!data.email || !data.code || !data.newPassword || !data.confirmPassword) {
+        throw createAuthError('invalid_credentials', 'All fields are required for password reset');
+      }
+
+      if (data.newPassword !== data.confirmPassword) {
+        throw createAuthError('invalid_credentials', 'Passwords do not match');
+      }
+
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setAuthState(prev => ({ ...prev, isLoading: false }));
-    } catch (error: any) {
-      console.error('Reset password error:', error);
-      setError(error.message || 'Password reset failed');
+      setLoading(false);
+    } catch (error) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        const authError = createAuthError('unknown_error', 'Password reset failed');
+        setError(authError);
+      }
     }
-  };
+  }, [setLoading, setError, createAuthError]);
 
+  /**
+   * Update user profile
+   */
+  const updateProfile = useCallback(async (updates: Partial<User>) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!authState.user) {
+        throw createAuthError('unknown_error', 'No user logged in');
+      }
+
+      // Mock profile update
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const updatedUser: User = {
+        ...authState.user,
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+
+      try {
+        localStorage.setItem('demo-user', JSON.stringify(updatedUser));
+      } catch (storageError) {
+        logError(storageError instanceof Error ? storageError : new Error('Failed to store updated user data'));
+      }
+
+      setUser(updatedUser);
+    } catch (error) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        const authError = createAuthError('unknown_error', 'Profile update failed');
+        setError(authError);
+      }
+    }
+  }, [setLoading, setError, createAuthError, authState.user, logError, setUser]);
+
+  /**
+   * Change password
+   */
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!currentPassword || !newPassword) {
+        throw createAuthError('invalid_credentials', 'Current and new passwords are required');
+      }
+
+      // Mock password change
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setLoading(false);
+    } catch (error) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        const authError = createAuthError('unknown_error', 'Password change failed');
+        setError(authError);
+      }
+    }
+  }, [setLoading, setError, createAuthError]);
+
+  // Initialize auth on mount
   useEffect(() => {
     refreshAuth();
-  }, []);
+  }, [refreshAuth]);
 
-  const value: AuthContextType = {
+  /**
+   * Memoized context value to prevent unnecessary re-renders
+   */
+  const value: AuthContextType = useMemo(() => ({
     ...authState,
     login,
     signup,
@@ -163,7 +416,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     forgotPassword,
     resetPassword,
     refreshAuth,
-  };
+    updateProfile,
+    changePassword,
+  }), [
+    authState,
+    login,
+    signup,
+    logout,
+    confirmSignup,
+    resendConfirmation,
+    forgotPassword,
+    resetPassword,
+    refreshAuth,
+    updateProfile,
+    changePassword,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
