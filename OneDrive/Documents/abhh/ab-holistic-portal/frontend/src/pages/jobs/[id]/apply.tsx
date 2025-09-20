@@ -8,6 +8,7 @@ import { z } from 'zod';
 import Layout from '../../../components/shared/Layout';
 import Button from '../../../components/shared/Button';
 import { Job } from '../../../types/job';
+import { jobsService } from '../../../services/jobs';
 
 const applicationSchema = z.object({
   // Personal Information
@@ -65,6 +66,7 @@ const JobApplicationPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [error, setError] = useState<string | null>(null);
   const totalSteps = 4;
 
   const {
@@ -79,27 +81,31 @@ const JobApplicationPage: React.FC = () => {
 
   useEffect(() => {
     if (id) {
-      // Simulate API call to fetch job details
-      setTimeout(() => {
-        const mockJob: Job = {
-          jobId: id as string,
-          title: 'Senior Software Engineer',
-          description: 'We are looking for an experienced software engineer...',
-          requirements: ['5+ years experience', 'React/Node.js', 'TypeScript'],
-          status: 'published',
-          createdBy: 'admin@abholistic.com',
-          createdAt: '2025-01-10T10:00:00Z',
-          deadline: '2025-02-15T23:59:59Z',
-          location: 'Remote',
-          employmentType: 'full-time',
-          department: 'Engineering',
-          salary: '$120,000 - $180,000'
-        };
-        setJob(mockJob);
-        setIsLoading(false);
-      }, 1000);
+      loadJob();
     }
   }, [id]);
+
+  const loadJob = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const jobData = await jobsService.getJobById(id as string);
+
+      // Only allow applications to published jobs
+      if (jobData.status !== 'published') {
+        setError('This job posting is not currently accepting applications.');
+        return;
+      }
+
+      setJob(jobData);
+    } catch (error) {
+      console.error('Error loading job:', error);
+      setError('Job not found or no longer available.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);

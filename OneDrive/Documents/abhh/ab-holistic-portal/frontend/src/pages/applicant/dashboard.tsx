@@ -24,97 +24,23 @@ const ApplicantDashboard: React.FC = () => {
       router.replace('/applicant/dashboard', undefined, { shallow: true });
     }
 
-    // Simulate API call to fetch user's applications
-    setTimeout(() => {
-      const mockApplications = [
-        {
-          applicationId: '1',
-          jobId: '1',
-          applicantId: user?.id || 'user1',
-          applicantEmail: user?.email || 'john.doe@email.com',
-          applicantName: user?.name || 'John Doe',
-          currentStage: 'written-test' as ApplicationStage,
-          appliedAt: '2025-01-10T09:00:00Z',
-          lastActivityAt: '2025-01-11T10:15:00Z',
-          status: 'active' as const,
-          score: 85,
-          notes: 'Strong technical background',
-          writtenTestScore: 85,
-          writtenTestCompletedAt: '2025-01-11T10:15:00Z',
-          job: {
-            jobId: '1',
-            title: 'Senior Software Engineer',
-            description: 'We are looking for an experienced software engineer...',
-            requirements: ['5+ years experience', 'React/Node.js', 'TypeScript'],
-            status: 'published' as const,
-            createdBy: 'admin@abholistic.com',
-            createdAt: '2025-01-10T10:00:00Z',
-            deadline: '2025-02-15T23:59:59Z',
-            location: 'Remote',
-            employmentType: 'full-time' as const,
-            department: 'Engineering',
-            salary: '$120,000 - $180,000'
-          }
-        },
-        {
-          applicationId: '2',
-          jobId: '2',
-          applicantId: user?.id || 'user1',
-          applicantEmail: user?.email || 'john.doe@email.com',
-          applicantName: user?.name || 'John Doe',
-          currentStage: 'video-test' as ApplicationStage,
-          appliedAt: '2025-01-05T14:30:00Z',
-          lastActivityAt: '2025-01-12T16:20:00Z',
-          status: 'active' as const,
-          score: 92,
-          notes: 'Excellent problem-solving skills',
-          writtenTestScore: 92,
-          writtenTestCompletedAt: '2025-01-08T11:30:00Z',
-          job: {
-            jobId: '2',
-            title: 'UX Designer',
-            description: 'Join our design team to create amazing user experiences...',
-            requirements: ['3+ years UX design', 'Figma expertise', 'Portfolio required'],
-            status: 'published' as const,
-            createdBy: 'admin@abholistic.com',
-            createdAt: '2025-01-08T14:30:00Z',
-            deadline: '2025-02-20T23:59:59Z',
-            location: 'New York, NY',
-            employmentType: 'full-time' as const,
-            department: 'Design',
-            salary: '$90,000 - $130,000'
-          }
-        },
-        {
-          applicationId: '3',
-          jobId: '3',
-          applicantId: user?.id || 'user1',
-          applicantEmail: user?.email || 'john.doe@email.com',
-          applicantName: user?.name || 'John Doe',
-          currentStage: 'applied' as ApplicationStage,
-          appliedAt: '2025-01-14T11:45:00Z',
-          lastActivityAt: '2025-01-14T11:45:00Z',
-          status: 'active' as const,
-          job: {
-            jobId: '3',
-            title: 'Data Scientist',
-            description: 'Help us leverage data to improve healthcare outcomes...',
-            requirements: ['PhD or Masters in related field', 'Python/R expertise', 'Machine learning experience'],
-            status: 'published' as const,
-            createdBy: 'admin@abholistic.com',
-            createdAt: '2025-01-12T09:15:00Z',
-            deadline: '2025-03-01T23:59:59Z',
-            location: 'San Francisco, CA',
-            employmentType: 'full-time' as const,
-            department: 'Data Science',
-            salary: '$140,000 - $200,000'
-          }
-        }
-      ];
+    // Load user's applications from API
+    const loadApplications = async () => {
+      try {
+        setIsLoading(true);
 
-      setApplications(mockApplications);
-      setIsLoading(false);
-    }, 1000);
+        // For now, set empty applications since this should come from a real API
+        // The API for user's applications would need to be implemented
+        setApplications([]);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error loading applications:', error);
+        setApplications([]);
+        setIsLoading(false);
+      }
+    };
+
+    loadApplications();
   }, [router, user]);
 
   const getStageInfo = (stage: ApplicationStage) => {

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Layout from '../../components/shared/Layout';
 import Button from '../../components/shared/Button';
 import { Job } from '../../types/job';
+import { jobsService } from '../../services/jobs';
 
 const PublicJobsPage: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -11,71 +12,36 @@ const PublicJobsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate loading published jobs
-    setTimeout(() => {
-      setJobs([
-        {
-          jobId: '1',
-          title: 'Senior Software Engineer',
-          description: 'We are looking for an experienced software engineer to join our growing team and help build the next generation of healthcare technology solutions.',
-          requirements: ['5+ years experience', 'React/Node.js', 'TypeScript', 'AWS experience'],
-          status: 'published',
-          createdBy: 'admin@abholistic.com',
-          createdAt: '2025-01-10T10:00:00Z',
-          deadline: '2025-02-15T23:59:59Z',
-          location: 'Remote',
-          employmentType: 'full-time',
-          department: 'Engineering',
-          salary: '$120,000 - $180,000'
-        },
-        {
-          jobId: '2',
-          title: 'UX Designer',
-          description: 'Join our design team to create amazing user experiences for healthcare applications that make a real difference in people\'s lives.',
-          requirements: ['3+ years UX design', 'Figma expertise', 'Portfolio required', 'Healthcare experience preferred'],
-          status: 'published',
-          createdBy: 'admin@abholistic.com',
-          createdAt: '2025-01-08T14:30:00Z',
-          deadline: '2025-02-20T23:59:59Z',
-          location: 'New York, NY',
-          employmentType: 'full-time',
-          department: 'Design',
-          salary: '$90,000 - $130,000'
-        },
-        {
-          jobId: '3',
-          title: 'Data Scientist',
-          description: 'Help us leverage data to improve healthcare outcomes through advanced analytics and machine learning.',
-          requirements: ['PhD or Masters in related field', 'Python/R expertise', 'Machine learning experience', 'Healthcare data experience'],
-          status: 'published',
-          createdBy: 'admin@abholistic.com',
-          createdAt: '2025-01-12T09:15:00Z',
-          deadline: '2025-03-01T23:59:59Z',
-          location: 'San Francisco, CA',
-          employmentType: 'full-time',
-          department: 'Data Science',
-          salary: '$140,000 - $200,000'
-        },
-        {
-          jobId: '4',
-          title: 'Clinical Research Coordinator',
-          description: 'Support our clinical research initiatives and help advance behavioral health treatments.',
-          requirements: ['Bachelor\'s degree in life sciences', 'Clinical research experience', 'GCP certification preferred', 'Attention to detail'],
-          status: 'published',
-          createdBy: 'admin@abholistic.com',
-          createdAt: '2025-01-05T11:20:00Z',
-          deadline: '2025-02-28T23:59:59Z',
-          location: 'Boston, MA',
-          employmentType: 'full-time',
-          department: 'Clinical Research',
-          salary: '$60,000 - $80,000'
-        }
-      ]);
-      setIsLoading(false);
-    }, 1000);
+    loadPublishedJobs();
   }, []);
+
+  const loadPublishedJobs = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      console.log('🔄 Loading published jobs from API...');
+
+      // Get only published jobs for public view
+      const response = await jobsService.getJobs({
+        page: 1,
+        limit: 50,
+        filters: { status: 'published' },
+      });
+
+      console.log('✅ Published jobs loaded successfully:', response);
+      setJobs(response.jobs);
+    } catch (error) {
+      console.error('❌ Error loading published jobs:', error);
+      setError('Unable to load job listings at this time. Please try again later.');
+      setJobs([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const getDaysRemaining = (deadline: string) => {
     const now = new Date();
@@ -198,6 +164,39 @@ const PublicJobsPage: React.FC = () => {
 
         {/* Jobs List */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-8">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">
+                    Error Loading Jobs
+                  </h3>
+                  <div className="mt-2 text-sm text-red-700">
+                    <p>{error}</p>
+                  </div>
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      className="bg-red-100 px-2 py-1.5 rounded-md text-sm font-medium text-red-800 hover:bg-red-200"
+                      onClick={() => {
+                        setError(null);
+                        loadPublishedJobs();
+                      }}
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="text-center py-12">
               <div className="spinner h-12 w-12 mx-auto"></div>

@@ -41,107 +41,25 @@ const AdminDashboard: React.FC = () => {
     loadData();
   }, []);
 
-  const loadData = () => {
-    // Simulate loading stats and applications
-    setTimeout(() => {
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+
+      // For now, we'll set empty data since these should come from real APIs
+      // The APIs for dashboard stats and applications would need to be implemented
       setStats({
-        jobs: { total: 12, active: 8, draft: 4 },
-        applications: { total: 156, pending: 23, inProgress: 45, completed: 88 },
-        tests: { written: 15, video: 12, submissions: 342 }
+        jobs: { total: 0, active: 0, draft: 0 },
+        applications: { total: 0, pending: 0, inProgress: 0, completed: 0 },
+        tests: { written: 0, video: 0, submissions: 0 }
       });
 
-      // Mock applications data
-      const mockApplications: any[] = [
-        {
-          applicationId: '1',
-          jobId: '1',
-          applicantId: 'user1',
-          applicantEmail: 'john.doe@example.com',
-          applicantName: 'John Doe',
-          currentStage: 'written-test',
-          appliedAt: '2025-01-10T09:00:00Z',
-          lastActivityAt: '2025-01-11T10:15:00Z',
-          status: 'active',
-          writtenTestScore: 85,
-          writtenTestCompletedAt: '2025-01-11T10:15:00Z',
-          job: {
-            jobId: '1',
-            title: 'Senior Software Engineer',
-            description: 'We are looking for an experienced software engineer...',
-            requirements: ['5+ years experience', 'React/Node.js', 'TypeScript'],
-            status: 'published',
-            createdBy: 'admin@abholistic.com',
-            createdAt: '2025-01-08T09:00:00Z',
-            deadline: '2025-02-15T23:59:59Z',
-            location: 'Remote',
-            employmentType: 'full-time',
-            department: 'Engineering',
-            salary: '$120,000 - $160,000'
-          }
-        },
-        {
-          applicationId: '2',
-          jobId: '1',
-          applicantId: 'user2',
-          applicantEmail: 'jane.smith@example.com',
-          applicantName: 'Jane Smith',
-          currentStage: 'video-test',
-          appliedAt: '2025-01-09T14:30:00Z',
-          lastActivityAt: '2025-01-12T16:20:00Z',
-          status: 'active',
-          writtenTestScore: 92,
-          writtenTestCompletedAt: '2025-01-11T14:30:00Z',
-          videoTestScore: 88,
-          videoTestCompletedAt: '2025-01-12T16:20:00Z',
-          job: {
-            jobId: '1',
-            title: 'Senior Software Engineer',
-            description: 'We are looking for an experienced software engineer...',
-            requirements: ['5+ years experience', 'React/Node.js', 'TypeScript'],
-            status: 'published',
-            createdBy: 'admin@abholistic.com',
-            createdAt: '2025-01-08T09:00:00Z',
-            deadline: '2025-02-15T23:59:59Z',
-            location: 'Remote',
-            employmentType: 'full-time',
-            department: 'Engineering',
-            salary: '$120,000 - $160,000'
-          }
-        },
-        {
-          applicationId: '3',
-          jobId: '1',
-          applicantId: 'user3',
-          applicantEmail: 'mike.johnson@example.com',
-          applicantName: 'Mike Johnson',
-          currentStage: 'final-interview',
-          appliedAt: '2025-01-08T11:00:00Z',
-          lastActivityAt: '2025-01-13T09:45:00Z',
-          status: 'active',
-          writtenTestScore: 78,
-          writtenTestCompletedAt: '2025-01-09T11:00:00Z',
-          videoTestScore: 85,
-          videoTestCompletedAt: '2025-01-10T15:30:00Z',
-          job: {
-            jobId: '1',
-            title: 'Senior Software Engineer',
-            description: 'We are looking for an experienced software engineer...',
-            requirements: ['5+ years experience', 'React/Node.js', 'TypeScript'],
-            status: 'published',
-            createdBy: 'admin@abholistic.com',
-            createdAt: '2025-01-08T09:00:00Z',
-            deadline: '2025-02-15T23:59:59Z',
-            location: 'Remote',
-            employmentType: 'full-time',
-            department: 'Engineering',
-            salary: '$120,000 - $160,000'
-          }
-        }
-      ];
-
-      setApplications(mockApplications);
+      // No mock applications - this should come from a real API
+      setApplications([]);
       setIsLoading(false);
-    }, 1000);
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      setIsLoading(false);
+    }
   };
 
   const StatCard: React.FC<{
@@ -194,7 +112,7 @@ const AdminDashboard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <ProtectedRoute requireRole="admin">
+      <ProtectedRoute allowedRoles={['admin']}>
         <Layout user={user} onLogout={logout}>
           <div className="flex items-center justify-center min-h-96">
             <div className="text-center">
@@ -213,7 +131,7 @@ const AdminDashboard: React.FC = () => {
         <title>Admin Dashboard - AB Holistic Interview Portal</title>
       </Head>
 
-      <ProtectedRoute requireRole="admin">
+      <ProtectedRoute allowedRoles={['admin']}>
         <Layout user={user} onLogout={logout}>
           <div className="space-y-8">
             {/* Header */}
@@ -328,51 +246,14 @@ const AdminDashboard: React.FC = () => {
                 <h2 className="text-xl font-semibold text-gray-900">Recent Activity</h2>
               </div>
               <div className="card-body">
-                <div className="space-y-4">
-                  <div className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-                    <div className="p-2 bg-green-100 rounded-full">
-                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">New application received</p>
-                      <p className="text-sm text-gray-600">John Doe applied for Software Engineer position</p>
-                      <p className="text-xs text-gray-500">2 hours ago</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-                    <div className="p-2 bg-blue-100 rounded-full">
-                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">Test submitted</p>
-                      <p className="text-sm text-gray-600">Sarah Smith completed written assessment</p>
-                      <p className="text-xs text-gray-500">4 hours ago</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-                    <div className="p-2 bg-purple-100 rounded-full">
-                      <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">Video interview scheduled</p>
-                      <p className="text-sm text-gray-600">Final interview with Mike Johnson for Marketing Manager</p>
-                      <p className="text-xs text-gray-500">6 hours ago</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 text-center">
-                  <Link href="/admin/activity" className="text-blue-600 hover:text-blue-500 text-sm font-medium">
-                    View all activity →
-                  </Link>
+                <div className="text-center py-8">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No recent activity</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Activity will appear here as users interact with your jobs and applications.
+                  </p>
                 </div>
               </div>
             </div>

@@ -15,111 +15,33 @@ const ApplicationDetailsPage: React.FC = () => {
   const { id } = router.query;
   const [application, setApplication] = useState<(Application & { job: Job }) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
-      // Simulate API call to fetch application details
-      setTimeout(() => {
-        const mockApplication = {
-          applicationId: id as string,
-          jobId: '1',
-          applicantId: user?.id || 'user1',
-          applicantEmail: user?.email || 'john.doe@email.com',
-          applicantName: user?.name || 'John Doe',
-          currentStage: 'written-test' as ApplicationStage,
-          appliedAt: '2025-01-10T09:00:00Z',
-          lastActivityAt: '2025-01-11T10:15:00Z',
-          status: 'active' as const,
-          score: 85,
-          notes: 'Strong technical background',
-          writtenTestScore: 85,
-          writtenTestCompletedAt: '2025-01-11T10:15:00Z',
-          personalInfo: {
-            firstName: 'John',
-            lastName: 'Doe',
-            email: 'john.doe@email.com',
-            phone: '+1 (555) 123-4567',
-            address: {
-              street: '123 Main St, Apt 4B',
-              city: 'New York',
-              state: 'NY',
-              zipCode: '10001',
-              country: 'US'
-            },
-            linkedIn: 'https://linkedin.com/in/johndoe',
-            github: 'https://github.com/johndoe',
-            website: 'https://johndoe.dev',
-            eligibilityToWork: true,
-            requiresSponsorship: false,
-            availableStartDate: '2025-03-01',
-            expectedSalary: '$120,000 - $140,000',
-            noticePeriod: '2 weeks'
-          },
-          resume: {
-            fileId: 'file1',
-            fileName: 'John_Doe_Resume.pdf',
-            fileSize: 245760,
-            fileType: 'application/pdf',
-            uploadedAt: '2025-01-10T09:00:00Z',
-            url: '#'
-          },
-          coverLetter: `Dear Hiring Manager,
-
-I am excited to apply for the Senior Software Engineer position at Applied Behavioral Holistic Health. With over 6 years of experience in full-stack development and a passion for healthcare technology, I am confident that I would be a valuable addition to your team.
-
-In my current role at TechCorp, I have led the development of several healthcare applications that have directly improved patient outcomes. My experience with React, Node.js, and AWS aligns perfectly with your technology stack, and I have a proven track record of delivering scalable, secure solutions in regulated environments.
-
-I am particularly drawn to AB Holistic's mission of revolutionizing behavioral healthcare through innovative technology. The opportunity to work on solutions that make a real difference in people's lives is incredibly motivating to me.
-
-Thank you for considering my application. I look forward to the opportunity to discuss how my skills and passion can contribute to your team's success.
-
-Best regards,
-John Doe`,
-          portfolio: 'https://johndoe.dev/portfolio',
-          additionalInfo: 'I have experience working in HIPAA-compliant environments and am familiar with healthcare data security requirements.',
-          stageHistory: [
-            {
-              stage: 'applied' as ApplicationStage,
-              enteredAt: '2025-01-10T09:00:00Z',
-              exitedAt: '2025-01-10T15:30:00Z',
-              actionBy: 'system',
-              notes: 'Application submitted successfully'
-            },
-            {
-              stage: 'screening' as ApplicationStage,
-              enteredAt: '2025-01-10T15:30:00Z',
-              exitedAt: '2025-01-11T09:00:00Z',
-              actionBy: 'admin@abholistic.com',
-              notes: 'Application meets minimum requirements'
-            },
-            {
-              stage: 'written-test' as ApplicationStage,
-              enteredAt: '2025-01-11T09:00:00Z',
-              actionBy: 'admin@abholistic.com',
-              notes: 'Invited to take written assessment'
-            }
-          ],
-          job: {
-            jobId: '1',
-            title: 'Senior Software Engineer',
-            description: 'We are looking for an experienced software engineer...',
-            requirements: ['5+ years experience', 'React/Node.js', 'TypeScript'],
-            status: 'published' as const,
-            createdBy: 'admin@abholistic.com',
-            createdAt: '2025-01-10T10:00:00Z',
-            deadline: '2025-02-15T23:59:59Z',
-            location: 'Remote',
-            employmentType: 'full-time' as const,
-            department: 'Engineering',
-            salary: '$120,000 - $180,000'
-          }
-        };
-
-        setApplication(mockApplication);
-        setIsLoading(false);
-      }, 1000);
+      loadApplication();
     }
   }, [id, user]);
+
+  const loadApplication = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // For now, this should come from a real API call
+      // The API for application details would need to be implemented
+      console.log('Would load application details for ID:', id);
+
+      // Set empty state since we don't have real data
+      setApplication(null);
+      setError('Application details are not yet available.');
+    } catch (error) {
+      console.error('Error loading application:', error);
+      setError('Unable to load application details.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const getStageInfo = (stage: ApplicationStage) => {
     const stageMap = {
