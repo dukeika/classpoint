@@ -1,39 +1,53 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Disable static export for development
-  // output: 'export',
-  trailingSlash: true,
-  skipTrailingSlashRedirect: true,
+  reactStrictMode: true,
+  swcMinify: true,
+  productionBrowserSourceMaps: false,
+  optimizeFonts: true,
+
+  // Output configuration for deployment
+  output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
+
+  // Images configuration for static export
   images: {
-    unoptimized: true
+    unoptimized: process.env.NODE_ENV === 'production',
   },
+
   experimental: {
-    typedRoutes: true
+    optimizePackageImports: ['@heroicons/react'],
+    serverComponentsExternalPackages: ['@aws-sdk/client-cognito-identity-provider'],
   },
-  env: {
-    CUSTOM_KEY: process.env.CUSTOM_KEY,
-    NEXT_PUBLIC_API_ENDPOINT: process.env.NEXT_PUBLIC_API_ENDPOINT,
-    NEXT_PUBLIC_USER_POOL_ID: process.env.NEXT_PUBLIC_USER_POOL_ID,
-    NEXT_PUBLIC_USER_POOL_WEB_CLIENT_ID: process.env.NEXT_PUBLIC_USER_POOL_WEB_CLIENT_ID,
-  },
+
   webpack: (config, { isServer }) => {
-    // Custom webpack config for AWS Amplify compatibility
     if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
+      config.optimization.splitChunks = {
+        chunks: 'all',
+        maxInitialRequests: 25,
+        minSize: 20000
       };
     }
+
+    // Handle AWS SDK modules properly
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      net: false,
+      tls: false,
+    };
+
     return config;
   },
+
+  // ESLint configuration - relax for immediate functionality
   eslint: {
-    ignoreDuringBuilds: true
+    ignoreDuringBuilds: true, // Re-enable after fixing ESLint issues
+    dirs: ['src'],
   },
+
+  // TypeScript checking during build (keep enabled for type safety)
   typescript: {
-    ignoreBuildErrors: false
-  }
+    ignoreBuildErrors: false,
+  },
 };
 
 module.exports = nextConfig;
