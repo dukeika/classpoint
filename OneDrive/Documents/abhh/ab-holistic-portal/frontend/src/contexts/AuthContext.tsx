@@ -1,444 +1,488 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from 'react';
+/**
+ * Authentication Context for AB Holistic Interview Portal
+ * Provides centralized authentication state management
+ */
+
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
 import {
-  AuthContextType,
   AuthState,
-  User,
-  LoginCredentials,
-  SignupData,
-  PasswordResetData,
+  AuthContextValue,
+  UserProfile,
+  UserRole,
+  AuthTokens,
   AuthError,
-  AuthErrorType
+  AuthStatus,
+  LoginOptions,
+  LogoutOptions,
+  AuthCodeParams,
+  ROLE_PERMISSIONS,
 } from '../types/auth';
-import { useErrorHandler } from '../hooks/useErrorHandler';
-// import awsConfig from '../config/aws'; // Temporarily disabled for development
+import { authService, AuthUtils } from '../services/auth';
+import { tokenManager } from '../services/tokenManager';
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+/**
+ * Authentication action types
+ */
+type AuthAction =
+  | { type: 'AUTH_START' }
+  | { type: 'AUTH_SUCCESS'; payload: { user: UserProfile; tokens: AuthTokens } }
+  | { type: 'AUTH_ERROR'; payload: AuthError }
+  | { type: 'LOGOUT_START' }
+  | { type: 'LOGOUT_SUCCESS' }
+  | { type: 'TOKEN_REFRESH_START' }
+  | { type: 'TOKEN_REFRESH_SUCCESS'; payload: { user: UserProfile; tokens: AuthTokens } }
+  | { type: 'TOKEN_REFRESH_ERROR'; payload: AuthError }
+  | { type: 'CLEAR_ERROR' }
+  | { type: 'SET_LOADING'; payload: boolean };
 
+/**
+ * Initial authentication state
+ */
+const initialState: AuthState = {
+  status: 'loading',
+  user: null,
+  tokens: null,
+  error: null,
+  isRefreshing: false,
+  isLoggingOut: false,
+};
+
+/**
+ * Authentication reducer
+ */
+const authReducer = (state: AuthState, action: AuthAction): AuthState => {
+  switch (action.type) {
+    case 'AUTH_START':
+      return {
+        ...state,
+        status: 'loading',
+        error: null,
+      };
+
+    case 'AUTH_SUCCESS':
+      return {
+        ...state,
+        status: 'authenticated',
+        user: action.payload.user,
+        tokens: action.payload.tokens,
+        error: null,
+        isRefreshing: false,
+      };
+
+    case 'AUTH_ERROR':
+      return {
+        ...state,
+        status: 'error',
+        user: null,
+        tokens: null,
+        error: action.payload,
+        isRefreshing: false,
+        isLoggingOut: false,
+      };
+
+    case 'LOGOUT_START':
+      return {
+        ...state,
+        isLoggingOut: true,
+        error: null,
+      };
+
+    case 'LOGOUT_SUCCESS':
+      return {
+        ...initialState,
+        status: 'unauthenticated',
+      };
+
+    case 'TOKEN_REFRESH_START':
+      return {
+        ...state,
+        isRefreshing: true,
+        error: null,
+      };
+
+    case 'TOKEN_REFRESH_SUCCESS':
+      return {
+        ...state,
+        user: action.payload.user,
+        tokens: action.payload.tokens,
+        isRefreshing: false,
+        error: null,
+      };
+
+    case 'TOKEN_REFRESH_ERROR':
+      return {
+        ...state,
+        status: 'unauthenticated',
+        user: null,
+        tokens: null,
+        error: action.payload,
+        isRefreshing: false,
+      };
+
+    case 'CLEAR_ERROR':
+      return {
+        ...state,
+        error: null,
+      };
+
+    case 'SET_LOADING':
+      return {
+        ...state,
+        status: action.payload ? 'loading' : state.status,
+      };
+
+    default:
+      return state;
+  }
+};
+
+/**
+ * Authentication context
+ */
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+/**
+ * Authentication provider props
+ */
 interface AuthProviderProps {
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
 /**
- * Enhanced AuthProvider with improved error handling and type safety
+ * Authentication provider component
  */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [authState, setAuthState] = useState<AuthState>({
-    user: null,
-    isAuthenticated: false,
-    isLoading: true,
-    error: null,
-  });
-
-  const { handleError: logError } = useErrorHandler({
-    context: 'AuthContext',
-    logErrors: true,
-  });
+  const [state, dispatch] = useReducer(authReducer, initialState);
 
   /**
-   * Create an authentication error with proper typing
+   * Initialize authentication state
    */
-  const createAuthError = useCallback((type: AuthErrorType, message: string, details?: Record<string, unknown>): AuthError => {
-    return { type, message, details };
+  const initializeAuth = useCallback(async () => {
+    try {
+      dispatch({ type: 'AUTH_START' });
+
+      // First, check if we have tokens in the URL hash (returning from Cognito)
+      if (authService.hasTokensInUrl()) {
+        try {
+          const tokens = authService.parseTokensFromHash(window.location.hash);
+          if (tokens) {
+            // Clear tokens from URL immediately
+            authService.clearTokensFromUrl();
+
+            // Store tokens
+            await tokenManager.setTokens(tokens);
+
+            // Get user profile
+            const user = await authService.getUserProfile(tokens);
+            dispatch({ type: 'AUTH_SUCCESS', payload: { user, tokens } });
+            return;
+          }
+        } catch (hashError) {
+          console.error('Error parsing tokens from hash:', hashError);
+          authService.clearTokensFromUrl();
+          const authError = hashError as AuthError;
+          dispatch({ type: 'AUTH_ERROR', payload: authError });
+          return;
+        }
+      }
+
+      // Check for stored tokens
+      const storedTokens = await tokenManager.getTokens();
+      if (!storedTokens) {
+        dispatch({ type: 'LOGOUT_SUCCESS' });
+        return;
+      }
+
+      // Check if tokens are expired
+      const areExpired = await tokenManager.areTokensExpired();
+      if (areExpired) {
+        // Implicit flow doesn't support refresh tokens, so we need to re-authenticate
+        await tokenManager.removeTokens();
+        dispatch({ type: 'LOGOUT_SUCCESS' });
+      } else {
+        // Tokens are valid, get user profile
+        try {
+          const user = await authService.getUserProfile(storedTokens);
+          dispatch({ type: 'AUTH_SUCCESS', payload: { user, tokens: storedTokens } });
+        } catch (profileError) {
+          // Invalid tokens, clear and logout
+          await tokenManager.removeTokens();
+          dispatch({ type: 'LOGOUT_SUCCESS' });
+        }
+      }
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+      dispatch({ type: 'LOGOUT_SUCCESS' });
+    }
   }, []);
 
   /**
-   * Set error state with proper error handling
+   * Login user (redirect to Cognito Hosted UI)
    */
-  const setError = useCallback((error: string | AuthError | null) => {
-    let errorMessage: string | null = null;
-
-    if (error) {
-      if (typeof error === 'string') {
-        errorMessage = error;
-      } else {
-        errorMessage = error.message;
-        // Log the full error object for debugging
-        logError(new Error(`Auth Error [${error.type}]: ${error.message}`));
-      }
+  const login = useCallback(async (options: LoginOptions = {}) => {
+    try {
+      const loginUrl = authService.getLoginUrl(options);
+      window.location.href = loginUrl;
+    } catch (error) {
+      console.error('Login error:', error);
+      const authError: AuthError = {
+        type: 'OAUTH_ERROR',
+        message: 'Failed to initiate login',
+        retryable: true,
+      };
+      dispatch({ type: 'AUTH_ERROR', payload: authError });
     }
-
-    setAuthState(prev => ({ ...prev, error: errorMessage, isLoading: false }));
-  }, [logError]);
-
-  /**
-   * Set user with proper state management
-   */
-  const setUser = useCallback((user: User | null) => {
-    setAuthState(prev => ({
-      ...prev,
-      user,
-      isAuthenticated: !!user,
-      isLoading: false,
-      error: null,
-    }));
   }, []);
 
-  /**
-   * Set loading state
-   */
-  const setLoading = useCallback((isLoading: boolean) => {
-    setAuthState(prev => ({ ...prev, isLoading }));
-  }, []);
 
   /**
-   * Parse stored user data with validation
+   * Logout user
    */
-  const parseStoredUser = useCallback((storedData: string): User | null => {
+  const logout = useCallback(async (options: LogoutOptions = {}) => {
     try {
-      const parsed = JSON.parse(storedData);
+      dispatch({ type: 'LOGOUT_START' });
 
-      // Validate required user properties
-      if (!parsed.id || !parsed.email || !parsed.role) {
-        throw new Error('Invalid user data structure');
+      // Revoke refresh token if available
+      if (state.tokens?.refreshToken) {
+        try {
+          await authService.revokeToken(state.tokens.refreshToken);
+        } catch (revokeError) {
+          console.warn('Failed to revoke token:', revokeError);
+        }
       }
 
-      return parsed as User;
-    } catch (error) {
-      logError(error instanceof Error ? error : new Error('Failed to parse stored user data'));
-      return null;
-    }
-  }, [logError]);
+      // Clear stored tokens
+      await tokenManager.clearAll();
 
-  /**
-   * Refresh authentication state from storage
-   */
-  const refreshAuth = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      // Check localStorage for demo user
-      const storedUser = localStorage.getItem('demo-user');
-      if (storedUser) {
-        const user = parseStoredUser(storedUser);
-        setUser(user);
+      if (options.global) {
+        // Global logout - redirect to Cognito logout
+        const logoutUrl = authService.getLogoutUrl(options);
+        window.location.href = logoutUrl;
       } else {
-        setUser(null);
+        // Local logout
+        dispatch({ type: 'LOGOUT_SUCCESS' });
+
+        // Redirect if specified
+        if (options.redirectTo) {
+          window.location.href = options.redirectTo;
+        }
       }
     } catch (error) {
-      const authError = createAuthError(
-        'unknown_error',
-        'Failed to refresh authentication state',
-        { originalError: error }
-      );
-      setError(authError);
-      setUser(null);
+      console.error('Logout error:', error);
+      // Force logout even if there were errors
+      dispatch({ type: 'LOGOUT_SUCCESS' });
     }
-  }, [setLoading, parseStoredUser, setUser, createAuthError, setError]);
+  }, [state.tokens]);
 
   /**
-   * Login with enhanced error handling
+   * Refresh authentication tokens (not supported in implicit flow)
    */
-  const login = useCallback(async (credentials: LoginCredentials) => {
+  const refreshTokens = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
+      // Implicit flow doesn't support refresh tokens
+      // Clear tokens and force re-authentication
+      await tokenManager.clearAll();
 
-      // Validate credentials
-      if (!credentials.email || !credentials.password) {
-        throw createAuthError('invalid_credentials', 'Email and password are required');
-      }
-
-      // Mock login - in production this would use AWS Cognito
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-
-      // Demo credentials with enhanced user data
-      let user: User;
-      const currentTime = new Date().toISOString();
-
-      if (credentials.email === 'admin@abholistic.com') {
-        user = {
-          id: 'admin-1',
-          email: 'admin@abholistic.com',
-          name: 'Admin User',
-          firstName: 'Admin',
-          lastName: 'User',
-          role: 'admin',
-          profileStatus: 'verified',
-          groups: ['admin', 'users'],
-          createdAt: currentTime,
-          updatedAt: currentTime,
-          lastLogin: currentTime,
-        };
-      } else {
-        user = {
-          id: `applicant-${Date.now()}`,
-          email: credentials.email,
-          name: 'Test Applicant',
-          firstName: 'Test',
-          lastName: 'Applicant',
-          role: 'applicant',
-          profileStatus: 'verified',
-          groups: ['applicant'],
-          createdAt: currentTime,
-          updatedAt: currentTime,
-          lastLogin: currentTime,
-        };
-      }
-
-      // Store user data
-      try {
-        localStorage.setItem('demo-user', JSON.stringify(user));
-      } catch (storageError) {
-        logError(storageError instanceof Error ? storageError : new Error('Failed to store user data'));
-        // Continue with login even if storage fails
-      }
-
-      setUser(user);
-    } catch (error) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        const authError = createAuthError('unknown_error', 'Login failed');
-        setError(authError);
-      }
-    }
-  }, [setLoading, setError, createAuthError, logError, setUser]);
-
-  /**
-   * Signup with enhanced validation and error handling
-   */
-  const signup = useCallback(async (data: SignupData) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Validate signup data
-      if (!data.email || !data.password || !data.firstName || !data.lastName) {
-        throw createAuthError('invalid_credentials', 'All fields are required for signup');
-      }
-
-      // Mock signup
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      setLoading(false);
-    } catch (error) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        const authError = createAuthError('unknown_error', 'Signup failed');
-        setError(authError);
-      }
-    }
-  }, [setLoading, setError, createAuthError]);
-
-  /**
-   * Logout with proper cleanup
-   */
-  const logout = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      // Clear stored user data
-      try {
-        localStorage.removeItem('demo-user');
-      } catch (storageError) {
-        logError(storageError instanceof Error ? storageError : new Error('Failed to clear user data'));
-        // Continue with logout even if storage clear fails
-      }
-
-      setUser(null);
-    } catch (error) {
-      const authError = createAuthError('unknown_error', 'Logout failed');
-      setError(authError);
-    }
-  }, [setLoading, logError, setUser, createAuthError, setError]);
-
-  /**
-   * Confirm signup with validation
-   */
-  const confirmSignup = useCallback(async (email: string, code: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (!email || !code) {
-        throw createAuthError('invalid_credentials', 'Email and confirmation code are required');
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setLoading(false);
-    } catch (error) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        const authError = createAuthError('unknown_error', 'Confirmation failed');
-        setError(authError);
-      }
-    }
-  }, [setLoading, setError, createAuthError]);
-
-  /**
-   * Resend confirmation code
-   */
-  const resendConfirmation = useCallback(async (email: string) => {
-    try {
-      if (!email) {
-        throw createAuthError('invalid_credentials', 'Email is required');
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (error) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        const authError = createAuthError('unknown_error', 'Resend confirmation failed');
-        setError(authError);
-      }
-    }
-  }, [setError, createAuthError]);
-
-  /**
-   * Request password reset
-   */
-  const forgotPassword = useCallback(async (email: string) => {
-    try {
-      if (!email) {
-        throw createAuthError('invalid_credentials', 'Email is required');
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (error) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        const authError = createAuthError('unknown_error', 'Password reset request failed');
-        setError(authError);
-      }
-    }
-  }, [setError, createAuthError]);
-
-  /**
-   * Reset password with new interface
-   */
-  const resetPassword = useCallback(async (data: PasswordResetData) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (!data.email || !data.code || !data.newPassword || !data.confirmPassword) {
-        throw createAuthError('invalid_credentials', 'All fields are required for password reset');
-      }
-
-      if (data.newPassword !== data.confirmPassword) {
-        throw createAuthError('invalid_credentials', 'Passwords do not match');
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setLoading(false);
-    } catch (error) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        const authError = createAuthError('unknown_error', 'Password reset failed');
-        setError(authError);
-      }
-    }
-  }, [setLoading, setError, createAuthError]);
-
-  /**
-   * Update user profile
-   */
-  const updateProfile = useCallback(async (updates: Partial<User>) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (!authState.user) {
-        throw createAuthError('unknown_error', 'No user logged in');
-      }
-
-      // Mock profile update
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const updatedUser: User = {
-        ...authState.user,
-        ...updates,
-        updatedAt: new Date().toISOString(),
+      const authError: AuthError = {
+        type: 'TOKEN_EXPIRED',
+        message: 'Session has expired. Please sign in again.',
+        retryable: false,
       };
 
-      try {
-        localStorage.setItem('demo-user', JSON.stringify(updatedUser));
-      } catch (storageError) {
-        logError(storageError instanceof Error ? storageError : new Error('Failed to store updated user data'));
-      }
-
-      setUser(updatedUser);
+      dispatch({ type: 'TOKEN_REFRESH_ERROR', payload: authError });
     } catch (error) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        const authError = createAuthError('unknown_error', 'Profile update failed');
-        setError(authError);
-      }
+      console.error('Token refresh error:', error);
+      await tokenManager.clearAll();
+
+      const authError: AuthError = {
+        type: 'TOKEN_EXPIRED',
+        message: 'Session has expired',
+        retryable: false,
+      };
+
+      dispatch({ type: 'TOKEN_REFRESH_ERROR', payload: authError });
     }
-  }, [setLoading, setError, createAuthError, authState.user, logError, setUser]);
+  }, []);
 
   /**
-   * Change password
+   * Check if user has permission
    */
-  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
-    try {
-      setLoading(true);
-      setError(null);
+  const hasPermission = useCallback((resource: string, action: string): boolean => {
+    if (!state.user) return false;
 
-      if (!currentPassword || !newPassword) {
-        throw createAuthError('invalid_credentials', 'Current and new passwords are required');
-      }
+    const rolePermissions = ROLE_PERMISSIONS[state.user.role] || [];
+    return rolePermissions.some(permission =>
+      permission.resource === resource && permission.action === action
+    );
+  }, [state.user]);
 
-      // Mock password change
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setLoading(false);
-    } catch (error) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        const authError = createAuthError('unknown_error', 'Password change failed');
-        setError(authError);
-      }
-    }
-  }, [setLoading, setError, createAuthError]);
+  /**
+   * Clear authentication errors
+   */
+  const clearError = useCallback(() => {
+    dispatch({ type: 'CLEAR_ERROR' });
+  }, []);
 
-  // Initialize auth on mount
+  /**
+   * Setup automatic token refresh
+   */
   useEffect(() => {
-    refreshAuth();
-  }, [refreshAuth]);
+    if (state.status !== 'authenticated' || !state.tokens) return;
+
+    const checkTokenExpiration = async () => {
+      const timeUntilExpiration = await tokenManager.getTimeUntilExpiration();
+
+      // Refresh if tokens expire in less than 5 minutes
+      if (timeUntilExpiration > 0 && timeUntilExpiration < 300) {
+        await refreshTokens();
+      }
+    };
+
+    // Check immediately
+    checkTokenExpiration();
+
+    // Set up periodic check every minute
+    const interval = setInterval(checkTokenExpiration, 60000);
+
+    return () => clearInterval(interval);
+  }, [state.status, state.tokens, refreshTokens]);
 
   /**
-   * Memoized context value to prevent unnecessary re-renders
+   * Initialize authentication on mount
    */
-  const value: AuthContextType = useMemo(() => ({
-    ...authState,
-    login,
-    signup,
-    logout,
-    confirmSignup,
-    resendConfirmation,
-    forgotPassword,
-    resetPassword,
-    refreshAuth,
-    updateProfile,
-    changePassword,
-  }), [
-    authState,
-    login,
-    signup,
-    logout,
-    confirmSignup,
-    resendConfirmation,
-    forgotPassword,
-    resetPassword,
-    refreshAuth,
-    updateProfile,
-    changePassword,
-  ]);
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  /**
+   * Setup broadcast channel for cross-tab logout
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const channel = new BroadcastChannel('auth');
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'LOGOUT') {
+        dispatch({ type: 'LOGOUT_SUCCESS' });
+      }
+    };
+
+    channel.addEventListener('message', handleMessage);
+
+    // Broadcast logout when user logs out
+    if (state.status === 'unauthenticated' && state.user === null) {
+      channel.postMessage({ type: 'LOGOUT' });
+    }
+
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      channel.close();
+    };
+  }, [state.status, state.user]);
+
+  /**
+   * Memoized context value
+   */
+  const contextValue = useMemo<AuthContextValue>(() => ({
+    state,
+    actions: {
+      login,
+      logout,
+      refreshTokens,
+      hasPermission,
+      clearError,
+    },
+  }), [state, login, logout, refreshTokens, hasPermission, clearError]);
+
+  return (
+    <AuthContext.Provider value={contextValue}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
-export const useAuth = (): AuthContextType => {
+/**
+ * Hook to use authentication context
+ */
+export const useAuth = (): AuthContextValue => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
+
+/**
+ * Hook to get current user
+ */
+export const useUser = (): UserProfile | null => {
+  const { state } = useAuth();
+  return state.user;
+};
+
+/**
+ * Hook to check authentication status
+ */
+export const useAuthStatus = (): AuthStatus => {
+  const { state } = useAuth();
+  return state.status;
+};
+
+/**
+ * Hook to check if user is authenticated
+ */
+export const useIsAuthenticated = (): boolean => {
+  const { state } = useAuth();
+  return state.status === 'authenticated' && !!state.user;
+};
+
+/**
+ * Hook to check if user is admin
+ */
+export const useIsAdmin = (): boolean => {
+  const user = useUser();
+  return AuthUtils.isAdmin(user);
+};
+
+/**
+ * Hook to check if user is applicant
+ */
+export const useIsApplicant = (): boolean => {
+  const user = useUser();
+  return AuthUtils.isApplicant(user);
+};
+
+/**
+ * Hook to check permissions
+ */
+export const usePermissions = () => {
+  const { actions } = useAuth();
+  return {
+    hasPermission: actions.hasPermission,
+    canRead: (resource: string) => actions.hasPermission(resource, 'read'),
+    canWrite: (resource: string) => actions.hasPermission(resource, 'write'),
+    canDelete: (resource: string) => actions.hasPermission(resource, 'delete'),
+  };
+};
+
+/**
+ * Authentication error context for error boundaries
+ */
+export const AuthErrorContext = createContext<{
+  error: AuthError | null;
+  clearError: () => void;
+} | undefined>(undefined);
+
+/**
+ * Hook to use auth error context
+ */
+export const useAuthError = () => {
+  const context = useContext(AuthErrorContext);
+  if (context === undefined) {
+    throw new Error('useAuthError must be used within an AuthErrorContext');
+  }
+  return context;
+};
+
+export default AuthContext;
