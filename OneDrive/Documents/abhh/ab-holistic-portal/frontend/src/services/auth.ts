@@ -1,306 +1,403 @@
 /**
- * AWS COGNITO AUTHENTICATION SERVICE WITH OAUTH HOSTED UI SUPPORT
- * Provides secure authentication using AWS Cognito with OAuth2/OIDC flows
+ * Authentication Service for AB Holistic Interview Portal
+ * Integrates with AWS Cognito Hosted UI
  */
 
 import {
-  signIn,
-  signUp,
-  confirmSignUp,
-  resendSignUpCode,
-  resetPassword,
-  confirmResetPassword,
-  updateUserAttributes,
-  getCurrentUser,
-  signOut,
-  updatePassword,
-  deleteUser,
-  fetchAuthSession,
-  signInWithRedirect
-  // AuthProvider - temporarily commented out due to import issue
-} from 'aws-amplify/auth';
-import {
-  User,
-  LoginCredentials,
-  SignupData,
-  PasswordResetData,
+  AuthConfig,
+  AuthTokens,
+  AuthService,
+  JWTClaims,
+  UserProfile,
+  UserRole,
+  LoginOptions,
+  LogoutOptions,
   AuthError,
   AuthErrorType,
 } from '../types/auth';
-import { TokenManager } from './api';
-import '../config/aws';
-import { awsConfig } from '../config/environment';
+import { tokenManager } from './tokenManager';
 
 /**
- * AWS Cognito Authentication service class
- * Supports both traditional login and OAuth/Hosted UI flows for secure authentication
+ * Authentication configuration for AWS Cognito
  */
-export class AuthService {
-  private static instance: AuthService;
-  private readonly COGNITO_DOMAIN: string;
-  private readonly FRONTEND_URL: string;
+const AUTH_CONFIG: AuthConfig = {
+  userPoolId: 'us-west-1_n0Ij4uUuB',
+  clientId: '3npp9udv9uarhb2ob18sj7jgvl',
+  region: 'us-west-1',
+  domain: 'ab-holistic-portal',
+  // IMPORTANT: Must match Next.js trailingSlash config (currently true)
+  redirectUri: typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.host}/auth/callback/`
+    : (process.env.NODE_ENV === 'production'
+      ? 'https://d8wgee9e93vts.cloudfront.net/auth/callback/'
+      : 'http://localhost:3000/auth/callback/'),
+  logoutUri: process.env.NODE_ENV === 'production'
+    ? 'https://d8wgee9e93vts.cloudfront.net'
+    : 'http://localhost:3000',
+  scope: ['openid', 'email', 'profile', 'aws.cognito.signin.user.admin'],
+  responseType: 'code',
+};
 
-  private constructor() {
-    // Get configuration from environment
-    this.COGNITO_DOMAIN = process.env.NEXT_PUBLIC_COGNITO_DOMAIN || 'ab-holistic-portal-auth.auth.us-west-1.amazoncognito.com';
-    this.FRONTEND_URL = process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI?.replace('/auth/callback', '') || 'http://ab-holistic-portal-frontend-prod.s3-website-us-west-1.amazonaws.com';
+/**
+ * Cognito URLs
+ */
+const COGNITO_URLS = {
+  hosted: `https://${AUTH_CONFIG.domain}.auth.${AUTH_CONFIG.region}.amazoncognito.com`,
+  token: `https://${AUTH_CONFIG.domain}.auth.${AUTH_CONFIG.region}.amazoncognito.com/oauth2/token`,
+  revoke: `https://${AUTH_CONFIG.domain}.auth.${AUTH_CONFIG.region}.amazoncognito.com/oauth2/revoke`,
+  userInfo: `https://${AUTH_CONFIG.domain}.auth.${AUTH_CONFIG.region}.amazoncognito.com/oauth2/userInfo`,
+  jwks: `https://cognito-idp.${AUTH_CONFIG.region}.amazonaws.com/${AUTH_CONFIG.userPoolId}/.well-known/jwks.json`,
+};
 
-    console.log('🔐 AuthService: Initialized - ONLY real AWS Cognito authentication with OAuth support');
-    console.log('🔐 AuthService: OAuth Domain:', this.COGNITO_DOMAIN);
-    console.log('🔐 AuthService: Frontend URL:', this.FRONTEND_URL);
-  }
+/**
+ * Create authentication error
+ */
+const createAuthError = (
+  type: AuthErrorType,
+  message: string,
+  code?: string,
+  details?: Record<string, unknown>
+): AuthError => ({
+  type,
+  message,
+  code,
+  details,
+  retryable: ['NETWORK_ERROR', 'TOKEN_EXPIRED'].includes(type),
+});
 
-  static getInstance(): AuthService {
-    if (!AuthService.instance) {
-      AuthService.instance = new AuthService();
-    }
-    return AuthService.instance;
+/**
+ * Authentication service implementation
+ */
+class CognitoAuthService implements AuthService {
+  private config: AuthConfig;
+
+  constructor(config: AuthConfig = AUTH_CONFIG) {
+    this.config = config;
   }
 
   /**
-   * Convert Cognito user to application User type
+   * Get current authentication configuration
    */
-  private async cognitoUserToUser(cognitoUser: any): Promise<User> {
-    try {
-      // Get auth session to access tokens
-      const session = await fetchAuthSession();
-      const accessToken = session.tokens?.accessToken;
-
-      const attributes = cognitoUser.attributes || {};
-
-      // Debug logging
-      console.log('Cognito user attributes:', attributes);
-      console.log('Access token payload:', accessToken?.payload);
-
-      const groups = Array.isArray(accessToken?.payload['cognito:groups'])
-        ? accessToken.payload['cognito:groups'] as string[]
-        : [];
-
-      console.log('User groups found:', groups);
-
-      // Determine role from groups or attributes with fallback
-      let role: 'admin' | 'applicant' = 'applicant';
-
-      if (groups.includes('admin')) {
-        role = 'admin';
-        console.log('Role determined: admin');
-      } else if (attributes['custom:role']) {
-        role = attributes['custom:role'];
-        console.log('Role from custom attribute:', role);
-      } else {
-        console.log('Role defaulted to: applicant');
-      }
-
-      return {
-        id: cognitoUser.username || attributes.sub,
-        email: attributes.email,
-        name: attributes.name || `${attributes.given_name || ''} ${attributes.family_name || ''}`.trim(),
-        firstName: attributes.given_name,
-        lastName: attributes.family_name,
-        role,
-        groups,
-        profileStatus: attributes.email_verified === 'true' ? 'verified' : 'pending',
-        createdAt: attributes.created_at,
-        updatedAt: attributes.updated_at,
-        lastLogin: new Date().toISOString(),
-        attributes: {
-          email_verified: attributes.email_verified === 'true',
-          phone_verified: attributes.phone_number_verified === 'true',
-          ...attributes,
-        },
-      };
-    } catch (error) {
-      console.error('Error converting Cognito user:', error);
-      throw error;
-    }
+  getConfig(): AuthConfig {
+    return { ...this.config };
   }
 
   /**
-   * Handle Cognito errors and convert to AuthError
-   */
-  private handleCognitoError(error: any): AuthError {
-    console.error('Cognito error:', error);
-
-    let type: AuthErrorType = 'unknown_error';
-    let message = 'An unknown error occurred';
-
-    if (error.name || error.code) {
-      const errorCode = error.name || error.code;
-      switch (errorCode) {
-        case 'NotAuthorizedException':
-        case 'UserNotFoundException':
-          type = 'invalid_credentials';
-          message = 'Invalid email or password';
-          break;
-        case 'UserNotConfirmedException':
-          type = 'account_not_confirmed';
-          message = 'Account not confirmed. Please check your email for verification link.';
-          break;
-        case 'PasswordResetRequiredException':
-          type = 'password_expired';
-          message = 'Password reset required';
-          break;
-        case 'TooManyRequestsException':
-        case 'LimitExceededException':
-          type = 'too_many_attempts';
-          message = 'Too many attempts. Please try again later.';
-          break;
-        case 'InvalidParameterException':
-        case 'InvalidPasswordException':
-          type = 'invalid_credentials';
-          message = error.message || 'Invalid parameters provided';
-          break;
-        case 'NetworkError':
-          type = 'network_error';
-          message = 'Network error. Please check your connection.';
-          break;
-        case 'UsernameExistsException':
-          message = 'An account with this email already exists';
-          break;
-        default:
-          message = error.message || 'Authentication failed';
-      }
-    } else if (error.message) {
-      message = error.message;
-    }
-
-    return {
-      type,
-      message,
-      details: {
-        code: error.name || error.code,
-        originalError: error,
-      },
-    };
-  }
-
-  /**
-   * Build OAuth sign-in URL for Cognito Hosted UI
-   */
-  buildOAuthSignInUrl(responseType: 'code' | 'token' = 'code'): string {
-    const params = new URLSearchParams({
-      client_id: awsConfig.userPoolClientId,
-      response_type: responseType,
-      scope: 'openid email profile aws.cognito.signin.user.admin',
-      redirect_uri: `${this.FRONTEND_URL}/auth/callback`,
-      state: this.generateState(),
-    });
-
-    return `https://${this.COGNITO_DOMAIN}/oauth2/authorize?${params.toString()}`;
-  }
-
-  /**
-   * Build OAuth sign-out URL for Cognito Hosted UI
-   */
-  buildOAuthSignOutUrl(): string {
-    const params = new URLSearchParams({
-      client_id: awsConfig.userPoolClientId,
-      logout_uri: `${this.FRONTEND_URL}/auth/login`,
-    });
-
-    return `https://${this.COGNITO_DOMAIN}/logout?${params.toString()}`;
-  }
-
-  /**
-   * Generate a secure random state parameter for OAuth flow
+   * Generate a random state parameter for CSRF protection
    */
   private generateState(): string {
     const array = new Uint8Array(32);
     crypto.getRandomValues(array);
-    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    return btoa(String.fromCharCode.apply(null, Array.from(array)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
   }
 
   /**
-   * Store OAuth state in session storage for verification
+   * Store state parameter for validation
    */
-  storeOAuthState(state: string): void {
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('oauth_state', state);
-    }
-  }
-
-  /**
-   * Verify OAuth state parameter
-   */
-  verifyOAuthState(state: string): boolean {
-    if (typeof window === 'undefined') return false;
-
-    const storedState = sessionStorage.getItem('oauth_state');
-    sessionStorage.removeItem('oauth_state'); // Clean up
-
-    return storedState === state;
-  }
-
-  /**
-   * Redirect to Cognito Hosted UI for sign-in
-   */
-  async signInWithHostedUI(): Promise<void> {
-    if (typeof window === 'undefined') {
-      throw new Error('OAuth sign-in is only available in browser environment');
-    }
-
-    console.log('🔐 AuthService: Redirecting to Cognito Hosted UI');
-
-    const signInUrl = this.buildOAuthSignInUrl();
-    const urlParams = new URLSearchParams(signInUrl.split('?')[1]);
-    const state = urlParams.get('state');
-
-    if (state) {
-      this.storeOAuthState(state);
-    }
-
-    window.location.href = signInUrl;
-  }
-
-  /**
-   * Handle OAuth callback from Cognito Hosted UI
-   */
-  async handleOAuthCallback(code?: string, state?: string, error?: string): Promise<User> {
-    if (error) {
-      throw this.handleCognitoError(new Error(`OAuth error: ${error}`));
-    }
-
-    if (!code) {
-      throw this.handleCognitoError(new Error('No authorization code received from OAuth callback'));
-    }
-
-    if (state && !this.verifyOAuthState(state)) {
-      throw this.handleCognitoError(new Error('Invalid OAuth state parameter'));
-    }
+  private storeState(state: string, data?: Record<string, unknown>): void {
+    const stateData = {
+      state,
+      timestamp: Date.now(),
+      data: data || {},
+    };
 
     try {
-      console.log('🔐 AuthService: Processing OAuth callback with authorization code');
-
-      // Exchange authorization code for tokens
-      await this.exchangeCodeForTokens(code);
-
-      // Get current user after successful token exchange
-      const cognitoUser = await getCurrentUser();
-      const user = await this.cognitoUserToUser(cognitoUser);
-
-      console.log('🔐 AuthService: OAuth callback successful, user:', user);
-      return user;
+      sessionStorage.setItem('auth_state', JSON.stringify(stateData));
     } catch (error) {
-      console.error('🔐 AuthService: OAuth callback failed:', error);
-      throw this.handleCognitoError(error);
+      console.warn('Failed to store auth state:', error);
     }
   }
 
   /**
-   * Exchange authorization code for tokens using Cognito token endpoint
+   * Validate and retrieve state parameter
    */
-  private async exchangeCodeForTokens(code: string): Promise<void> {
-    const tokenEndpoint = `https://${this.COGNITO_DOMAIN}/oauth2/token`;
+  private validateState(state: string): Record<string, unknown> | null {
+    try {
+      const storedData = sessionStorage.getItem('auth_state');
+      if (!storedData) return null;
+
+      const parsed = JSON.parse(storedData);
+      const isExpired = Date.now() - parsed.timestamp > 10 * 60 * 1000; // 10 minutes
+
+      if (isExpired || parsed.state !== state) {
+        sessionStorage.removeItem('auth_state');
+        return null;
+      }
+
+      sessionStorage.removeItem('auth_state');
+      return parsed.data || {};
+    } catch (error) {
+      console.warn('Failed to validate auth state:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Generate login URL for Cognito Hosted UI
+   */
+  getLoginUrl(options: LoginOptions = {}): string {
+    const state = this.generateState();
+    const stateData = Object.assign({
+      redirectTo: options.redirectTo,
+    }, options.state || {});
+
+    this.storeState(state, stateData);
 
     const params = new URLSearchParams({
-      grant_type: 'authorization_code',
-      client_id: awsConfig.userPoolClientId,
-      code: code,
-      redirect_uri: `${this.FRONTEND_URL}/auth/callback`,
+      response_type: this.config.responseType,
+      client_id: this.config.clientId,
+      redirect_uri: this.config.redirectUri,
+      scope: this.config.scope.join(' '),
+      state,
     });
 
+    if (options.forceLogin) {
+      params.append('prompt', 'login');
+    }
+
+    return `${COGNITO_URLS.hosted}/login?${params.toString()}`;
+  }
+
+  /**
+   * Generate logout URL for Cognito Hosted UI
+   */
+  getLogoutUrl(options: LogoutOptions = {}): string {
+    const params = new URLSearchParams({
+      client_id: this.config.clientId,
+      logout_uri: options.redirectTo || this.config.logoutUri,
+    });
+
+    return `${COGNITO_URLS.hosted}/logout?${params.toString()}`;
+  }
+
+  /**
+   * Parse tokens from URL hash (implicit flow)
+   */
+  parseTokensFromHash(hash: string): AuthTokens | null {
     try {
-      const response = await fetch(tokenEndpoint, {
+      // Remove the # from the hash
+      const cleanHash = hash.startsWith('#') ? hash.substring(1) : hash;
+
+      if (!cleanHash) return null;
+
+      const params = new URLSearchParams(cleanHash);
+
+      const accessToken = params.get('access_token');
+      const idToken = params.get('id_token');
+      const expiresIn = params.get('expires_in');
+      const tokenType = params.get('token_type');
+      const state = params.get('state');
+      const error = params.get('error');
+      const errorDescription = params.get('error_description');
+
+      // Check for OAuth errors
+      if (error) {
+        throw createAuthError(
+          'OAUTH_ERROR',
+          errorDescription || 'Authentication failed',
+          error
+        );
+      }
+
+      // Validate required tokens
+      if (!accessToken || !idToken) {
+        return null;
+      }
+
+      // Validate state parameter
+      if (state) {
+        const stateData = this.validateState(state);
+        if (!stateData) {
+          throw createAuthError(
+            'OAUTH_ERROR',
+            'Invalid or expired state parameter',
+            'INVALID_STATE'
+          );
+        }
+      }
+
+      // Calculate expiration time
+      const expirationSeconds = parseInt(expiresIn || '3600', 10);
+      const expiresAt = Math.floor(Date.now() / 1000) + expirationSeconds;
+
+      return {
+        accessToken,
+        idToken,
+        refreshToken: '', // Implicit flow doesn't provide refresh tokens
+        expiresAt,
+        tokenType: tokenType || 'Bearer',
+      };
+    } catch (error) {
+      if (error instanceof Error && 'type' in error) {
+        throw error; // Re-throw AuthError
+      }
+
+      throw createAuthError(
+        'OAUTH_ERROR',
+        'Failed to parse tokens from URL',
+        'PARSE_FAILED',
+        { originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Check if current URL contains authentication tokens
+   */
+  hasTokensInUrl(): boolean {
+    if (typeof window === 'undefined') return false;
+
+    const hash = window.location.hash;
+    return hash.includes('access_token') && hash.includes('id_token');
+  }
+
+  /**
+   * Clear tokens from URL hash
+   */
+  clearTokensFromUrl(): void {
+    if (typeof window === 'undefined') return;
+
+    // Replace the current history entry to remove tokens from URL
+    const url = new URL(window.location.href);
+    url.hash = '';
+
+    window.history.replaceState({}, document.title, url.toString());
+  }
+
+  /**
+   * Refresh access token using refresh token (not available in implicit flow)
+   */
+  async refreshAccessToken(refreshToken: string): Promise<AuthTokens> {
+    // Implicit flow doesn't provide refresh tokens
+    // User needs to re-authenticate when tokens expire
+    throw createAuthError(
+      'TOKEN_EXPIRED',
+      'Session has expired. Please sign in again.',
+      'NO_REFRESH_TOKEN'
+    );
+  }
+
+  /**
+   * Validate and decode JWT token
+   */
+  async validateToken(token: string): Promise<JWTClaims> {
+    try {
+      // Basic JWT format validation
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        throw createAuthError(
+          'TOKEN_INVALID',
+          'Invalid JWT token format',
+          'INVALID_FORMAT'
+        );
+      }
+
+      // Decode payload
+      const payload = parts[1];
+      const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+      const claims: JWTClaims = JSON.parse(decoded);
+
+      // Validate expiration
+      const now = Math.floor(Date.now() / 1000);
+      if (claims.exp && claims.exp <= now) {
+        throw createAuthError(
+          'TOKEN_EXPIRED',
+          'JWT token has expired',
+          'TOKEN_EXPIRED'
+        );
+      }
+
+      // Validate issuer
+      const expectedIssuer = `https://cognito-idp.${this.config.region}.amazonaws.com/${this.config.userPoolId}`;
+      if (claims.iss !== expectedIssuer) {
+        throw createAuthError(
+          'TOKEN_INVALID',
+          'Invalid token issuer',
+          'INVALID_ISSUER'
+        );
+      }
+
+      // Validate audience
+      if (claims.aud !== this.config.clientId) {
+        throw createAuthError(
+          'TOKEN_INVALID',
+          'Invalid token audience',
+          'INVALID_AUDIENCE'
+        );
+      }
+
+      return claims;
+    } catch (error) {
+      if (error instanceof Error && 'type' in error) {
+        throw error; // Re-throw AuthError
+      }
+
+      throw createAuthError(
+        'TOKEN_INVALID',
+        'Failed to validate JWT token',
+        'VALIDATION_FAILED',
+        { originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Get user profile from tokens
+   */
+  async getUserProfile(tokens: AuthTokens): Promise<UserProfile> {
+    try {
+      // Validate and decode ID token
+      const claims = await this.validateToken(tokens.idToken);
+
+      // Extract user role from custom claim, cognito groups, or default to applicant
+      const cognitoGroups = claims['cognito:groups'] as string[] | undefined;
+      const customRole = claims['custom:role'] as UserRole | undefined;
+
+      // Priority: custom:role -> first cognito group -> default to applicant
+      const role: UserRole = customRole || (cognitoGroups?.[0] as UserRole) || 'applicant';
+
+      // Create user profile
+      const profile: UserProfile = {
+        id: claims.sub,
+        cognitoSub: claims.sub,
+        email: claims.email,
+        firstName: claims.given_name || '',
+        lastName: claims.family_name || '',
+        role,
+        emailVerified: claims.email_verified || false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      return profile;
+    } catch (error) {
+      if (error instanceof Error && 'type' in error) {
+        throw error; // Re-throw AuthError
+      }
+
+      throw createAuthError(
+        'TOKEN_INVALID',
+        'Failed to extract user profile from tokens',
+        'PROFILE_EXTRACTION_FAILED',
+        { originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Revoke refresh token
+   */
+  async revokeToken(refreshToken: string): Promise<void> {
+    try {
+      const params = new URLSearchParams({
+        token: refreshToken,
+        client_id: this.config.clientId,
+      });
+
+      const response = await fetch(COGNITO_URLS.revoke, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -308,303 +405,150 @@ export class AuthService {
         body: params.toString(),
       });
 
-      if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Token exchange failed: ${response.status} ${errorData}`);
+      if (!response.ok && response.status !== 400) {
+        // 400 is acceptable as it might mean token is already invalid
+        console.warn('Failed to revoke token:', response.status);
       }
-
-      const tokens = await response.json();
-
-      // Store tokens in TokenManager
-      if (tokens.access_token) {
-        TokenManager.setTokens(tokens.access_token, tokens.refresh_token, tokens.id_token);
-      }
-
-      console.log('🔐 AuthService: Token exchange successful');
     } catch (error) {
-      console.error('🔐 AuthService: Token exchange failed:', error);
-      throw error;
+      console.warn('Failed to revoke token:', error);
+      // Don't throw error as token revocation is not critical for logout
     }
   }
 
   /**
-   * Sign in user with email and password (traditional login)
+   * Get user info from Cognito
    */
-  async signIn(credentials: LoginCredentials): Promise<User> {
-    // FORCE REAL AWS COGNITO AUTHENTICATION - Mock auth completely disabled
-    console.log('🔐 AuthService: Using REAL AWS Cognito authentication ONLY');
-    console.log('🔐 AuthService: Mock authentication has been COMPLETELY REMOVED');
-    console.log('🔐 AuthService: Attempting real sign-in for:', credentials.email);
-
+  async getUserInfo(accessToken: string): Promise<Record<string, unknown>> {
     try {
-      const { isSignedIn, nextStep } = await signIn({
-        username: credentials.email,
-        password: credentials.password,
-      });
-
-      console.log('🔐 AuthService: AWS Cognito response:', { isSignedIn, nextStep });
-
-      // Handle different sign-in states
-      if (nextStep && nextStep.signInStep !== 'DONE') {
-        switch (nextStep.signInStep) {
-          case 'CONFIRM_SIGN_UP':
-            throw new Error('Account not confirmed. Please check your email for verification code.');
-          case 'RESET_PASSWORD':
-            throw new Error('Password reset required. Please reset your password.');
-          case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE':
-            throw new Error('MFA token required');
-          default:
-            throw new Error(`Authentication challenge: ${nextStep.signInStep}`);
-        }
-      }
-
-      if (!isSignedIn) {
-        throw new Error('Sign in failed');
-      }
-
-      // Get tokens and store them
-      const session = await fetchAuthSession();
-      if (session.tokens) {
-        const accessToken = session.tokens.accessToken?.toString();
-        const idToken = session.tokens.idToken?.toString();
-
-        if (accessToken) {
-          TokenManager.setTokens(accessToken, undefined, idToken);
-        }
-      }
-
-      // Get current user after successful sign-in
-      const cognitoUser = await getCurrentUser();
-
-      // Convert to application user format
-      const user = await this.cognitoUserToUser(cognitoUser);
-
-      return user;
-    } catch (error) {
-      throw this.handleCognitoError(error);
-    }
-  }
-
-  /**
-   * Sign up new user
-   */
-  async signUp(data: SignupData): Promise<{ userId?: string; isSignUpComplete: boolean }> {
-    try {
-      const result = await signUp({
-        username: data.email,
-        password: data.password,
-        options: {
-          userAttributes: {
-            email: data.email,
-            given_name: data.firstName,
-            family_name: data.lastName,
-            name: `${data.firstName} ${data.lastName}`,
-            'custom:role': data.role || 'applicant',
-          },
+      const response = await fetch(COGNITO_URLS.userInfo, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
         },
       });
 
-      return result;
-    } catch (error) {
-      throw this.handleCognitoError(error);
-    }
-  }
-
-  /**
-   * Confirm sign up with verification code
-   */
-  async confirmSignUp(email: string, code: string): Promise<void> {
-    try {
-      await confirmSignUp({
-        username: email,
-        confirmationCode: code,
-      });
-    } catch (error) {
-      throw this.handleCognitoError(error);
-    }
-  }
-
-  /**
-   * Resend confirmation code
-   */
-  async resendConfirmationCode(email: string): Promise<void> {
-    try {
-      await resendSignUpCode({
-        username: email,
-      });
-    } catch (error) {
-      throw this.handleCognitoError(error);
-    }
-  }
-
-  /**
-   * Request password reset
-   */
-  async forgotPassword(email: string): Promise<void> {
-    try {
-      await resetPassword({
-        username: email,
-      });
-    } catch (error) {
-      throw this.handleCognitoError(error);
-    }
-  }
-
-  /**
-   * Submit new password with reset code
-   */
-  async forgotPasswordSubmit(data: PasswordResetData): Promise<void> {
-    try {
-      await confirmResetPassword({
-        username: data.email,
-        confirmationCode: data.code,
-        newPassword: data.newPassword,
-      });
-    } catch (error) {
-      throw this.handleCognitoError(error);
-    }
-  }
-
-  /**
-   * Change current user's password
-   */
-  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    try {
-      await updatePassword({
-        oldPassword: currentPassword,
-        newPassword: newPassword,
-      });
-    } catch (error) {
-      throw this.handleCognitoError(error);
-    }
-  }
-
-  /**
-   * Sign out current user with optional global sign-out
-   */
-  async signOut(globalSignOut: boolean = false): Promise<void> {
-    // FORCE REAL AWS COGNITO AUTHENTICATION - Mock auth completely disabled
-    console.log('AuthService: Signing out using REAL AWS Cognito');
-
-    try {
-      if (globalSignOut) {
-        // Redirect to Cognito Hosted UI logout
-        const signOutUrl = this.buildOAuthSignOutUrl();
-        if (typeof window !== 'undefined') {
-          window.location.href = signOutUrl;
-          return;
-        }
+      if (!response.ok) {
+        throw createAuthError(
+          'UNAUTHORIZED',
+          'Failed to get user info',
+          'USER_INFO_FAILED'
+        );
       }
 
-      await signOut();
-      TokenManager.clearTokens();
+      return await response.json();
     } catch (error) {
-      // Even if Cognito sign out fails, clear local tokens
-      TokenManager.clearTokens();
-      throw this.handleCognitoError(error);
-    }
-  }
-
-  /**
-   * Get current authenticated user
-   */
-  async getCurrentUser(): Promise<User | null> {
-    // FORCE REAL AWS COGNITO AUTHENTICATION - Mock auth completely disabled
-    console.log('AuthService: Getting current user from REAL AWS Cognito');
-
-    try {
-      const cognitoUser = await getCurrentUser();
-      if (!cognitoUser) return null;
-
-      const user = await this.cognitoUserToUser(cognitoUser);
-      return user;
-    } catch (error) {
-      console.warn('Failed to get current user:', error);
-      TokenManager.clearTokens();
-      return null;
-    }
-  }
-
-  /**
-   * Refresh authentication session
-   */
-  async refreshSession(): Promise<void> {
-    try {
-      const session = await fetchAuthSession({ forceRefresh: true });
-      if (session.tokens) {
-        const accessToken = session.tokens.accessToken?.toString();
-        const idToken = session.tokens.idToken?.toString();
-
-        if (accessToken) {
-          TokenManager.setTokens(accessToken, undefined, idToken);
-        }
+      if (error instanceof Error && 'type' in error) {
+        throw error;
       }
-    } catch (error) {
-      TokenManager.clearTokens();
-      throw this.handleCognitoError(error);
-    }
-  }
 
-  /**
-   * Update user attributes
-   */
-  async updateUserAttributes(attributes: Record<string, string>): Promise<void> {
-    try {
-      await updateUserAttributes({
-        userAttributes: attributes,
-      });
-    } catch (error) {
-      throw this.handleCognitoError(error);
-    }
-  }
-
-  /**
-   * Check if user is authenticated
-   */
-  async isAuthenticated(): Promise<boolean> {
-    try {
-      const session = await fetchAuthSession();
-      return !!session.tokens?.accessToken;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Get current session tokens
-   */
-  async getTokens(): Promise<{
-    accessToken: string;
-    refreshToken: string;
-    idToken: string;
-  } | null> {
-    try {
-      const session = await fetchAuthSession();
-      if (session.tokens) {
-        return {
-          accessToken: session.tokens.accessToken?.toString() || '',
-          refreshToken: '',
-          idToken: session.tokens.idToken?.toString() || '',
-        };
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Delete user account
-   */
-  async deleteUser(): Promise<void> {
-    try {
-      await deleteUser();
-      TokenManager.clearTokens();
-    } catch (error) {
-      throw this.handleCognitoError(error);
+      throw createAuthError(
+        'NETWORK_ERROR',
+        'Failed to fetch user info',
+        'USER_INFO_NETWORK_ERROR',
+        { originalError: error }
+      );
     }
   }
 }
 
-// Export singleton instance
-export const authService = AuthService.getInstance();
+/**
+ * Authentication service instance
+ */
+export const authService = new CognitoAuthService();
+
+/**
+ * Authentication utilities
+ */
+export const AuthUtils = {
+  /**
+   * Check if error is retryable
+   */
+  isRetryableError(error: AuthError): boolean {
+    return error.retryable;
+  },
+
+  /**
+   * Get user-friendly error message
+   */
+  getUserFriendlyErrorMessage(error: AuthError): string {
+    switch (error.type) {
+      case 'INVALID_CREDENTIALS':
+        return 'Invalid email or password. Please try again.';
+      case 'USER_NOT_FOUND':
+        return 'Account not found. Please check your email or sign up.';
+      case 'USER_NOT_CONFIRMED':
+        return 'Please verify your email address to continue.';
+      case 'PASSWORD_RESET_REQUIRED':
+        return 'Password reset required. Please check your email.';
+      case 'TOKEN_EXPIRED':
+        return 'Your session has expired. Please sign in again.';
+      case 'TOKEN_INVALID':
+        return 'Invalid session. Please sign in again.';
+      case 'NETWORK_ERROR':
+        return 'Network error. Please check your connection and try again.';
+      case 'OAUTH_ERROR':
+        return 'Authentication failed. Please try again.';
+      case 'UNAUTHORIZED':
+        return 'You are not authorized to access this resource.';
+      case 'FORBIDDEN':
+        return 'Access denied. You do not have permission to perform this action.';
+      default:
+        return 'An unexpected error occurred. Please try again.';
+    }
+  },
+
+  /**
+   * Extract redirect URL from callback state
+   */
+  extractRedirectUrl(state?: string): string | null {
+    if (!state) return null;
+
+    try {
+      const storedData = sessionStorage.getItem('auth_state');
+      if (!storedData) return null;
+
+      const parsed = JSON.parse(storedData);
+      return parsed.data?.redirectTo || null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Check if user has admin role
+   */
+  isAdmin(user: UserProfile | null): boolean {
+    return user?.role === 'admin';
+  },
+
+  /**
+   * Check if user has applicant role
+   */
+  isApplicant(user: UserProfile | null): boolean {
+    return user?.role === 'applicant';
+  },
+
+  /**
+   * Format user display name
+   */
+  formatUserDisplayName(user: UserProfile): string {
+    const fullName = `${user.firstName} ${user.lastName}`.trim();
+    return fullName || user.email;
+  },
+
+  /**
+   * Get user initials for avatar
+   */
+  getUserInitials(user: UserProfile): string {
+    const firstName = user.firstName?.charAt(0)?.toUpperCase() || '';
+    const lastName = user.lastName?.charAt(0)?.toUpperCase() || '';
+
+    if (firstName && lastName) {
+      return firstName + lastName;
+    }
+
+    return firstName || user.email.charAt(0).toUpperCase();
+  },
+};
+
+export default authService;

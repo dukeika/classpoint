@@ -13,12 +13,13 @@ import {
   JobStats
 } from '../types/job';
 import { PaginatedResponse, ApiResponse } from '../types/common';
+import { tokenManager } from './tokenManager';
 
 class JobService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_ENDPOINT || 'https://04efp4qnv4.execute-api.us-west-1.amazonaws.com/prod';
+    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_ENDPOINT || 'https://xwuz66mdhf.execute-api.us-west-1.amazonaws.com/prod';
     console.log('JobService initialized with baseUrl:', this.baseUrl);
   }
 
@@ -30,33 +31,22 @@ class JobService {
       'Content-Type': 'application/json',
     });
 
-    // Get token from different possible storage locations
-    let token = null;
+    try {
+      // Get tokens from tokenManager (uses proper storage keys)
+      const tokens = await tokenManager.getTokens();
 
-    // Check for stored tokens from AuthContext
-    const storedTokens = localStorage.getItem('auth_tokens');
-    if (storedTokens) {
-      try {
-        const parsed = JSON.parse(storedTokens);
-        token = parsed.accessToken || parsed.idToken;
-      } catch (e) {
-        console.warn('Failed to parse stored auth tokens:', e);
+      if (tokens && tokens.idToken) {
+        headers.set('Authorization', `Bearer ${tokens.idToken}`);
+        console.log('Added authorization header with token:', tokens.idToken.substring(0, 20) + '...');
+      } else {
+        console.warn('No authentication token found in tokenManager');
+
+        // Debug: Check what's in storage
+        const storageInfo = tokenManager.getStorageInfo();
+        console.log('Storage info:', storageInfo);
       }
-    }
-
-    // Fallback to direct token storage
-    if (!token) {
-      token = localStorage.getItem('accessToken') ||
-             localStorage.getItem('authToken') ||
-             localStorage.getItem('id_token') ||
-             localStorage.getItem('access_token');
-    }
-
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
-      console.log('Added authorization header with token:', token.substring(0, 20) + '...');
-    } else {
-      console.warn('No authentication token found');
+    } catch (error) {
+      console.error('Error retrieving auth tokens:', error);
     }
 
     return headers;

@@ -32,7 +32,7 @@ module.exports = {
   ],
 
   // Module path mapping
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
     '^@types/(.*)$': '<rootDir>/src/types/$1',
@@ -81,8 +81,8 @@ module.exports = {
   testTimeout: 30000,
 
   // Global setup/teardown
-  globalSetup: '<rootDir>/src/utils/test-global-setup.ts',
-  globalTeardown: '<rootDir>/src/utils/test-global-teardown.ts',
+  // globalSetup: '<rootDir>/src/utils/test-global-setup.ts',
+  // globalTeardown: '<rootDir>/src/utils/test-global-teardown.ts',
 
   // Verbose output
   verbose: true,

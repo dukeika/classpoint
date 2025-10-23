@@ -9,7 +9,7 @@ export const commonSchemas = {
   phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/).optional(),
   url: Joi.string().uri().optional(),
   stage: Joi.string().valid('applied', 'written_test', 'video_test', 'final_interview', 'hired', 'rejected').required(),
-  jobStatus: Joi.string().valid('draft', 'published', 'closed').required(),
+  jobStatus: Joi.string().valid('DRAFT', 'PUBLISHED', 'CLOSED', 'ARCHIVED').required(),
   testType: Joi.string().valid('written', 'video').required(),
   questionType: Joi.string().valid('mcq', 'short_answer', 'essay', 'video_prompt').required(),
 };
@@ -17,18 +17,60 @@ export const commonSchemas = {
 // Job validation schemas
 export const jobSchemas = {
   create: Joi.object({
-    title: Joi.string().min(3).max(100).required(),
-    description: Joi.string().min(10).max(5000).required(),
-    requirements: Joi.array().items(Joi.string().min(3).max(200)).min(1).max(20).required(),
-    deadline: Joi.date().iso().greater('now').optional(),
+    // Required fields
+    title: Joi.string().min(3).max(100).trim().required(),
+    description: Joi.string().min(10).max(5000).trim().required(),
+    requirements: Joi.array().items(Joi.string().min(3).max(200).trim()).min(1).max(20).required(),
+
+    // Optional fields with comprehensive validation
+    responsibilities: Joi.array().items(Joi.string().min(3).max(200).trim()).max(20).optional().default([]),
+    qualifications: Joi.array().items(Joi.string().min(3).max(200).trim()).max(20).optional().default([]),
+    department: Joi.string().min(2).max(50).trim().optional().default('General'),
+    location: Joi.string().min(2).max(100).trim().optional().default('Remote'),
+    remotePolicy: Joi.string().valid('remote', 'hybrid', 'on_site', 'REMOTE', 'HYBRID', 'ON_SITE').optional().default('remote'),
+    jobType: Joi.string().valid('full_time', 'part_time', 'contract', 'internship', 'freelance', 'FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP', 'FREELANCE').optional().default('full_time'),
+    employmentType: Joi.string().valid('full_time', 'part_time', 'contract', 'internship', 'freelance', 'FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP', 'FREELANCE').optional(), // legacy alias
+    type: Joi.string().valid('full_time', 'part_time', 'contract', 'internship', 'freelance', 'Full-time', 'Part-time', 'Contract', 'Internship', 'Freelance').optional(), // frontend compatibility
+    status: Joi.string().valid('draft', 'published', 'closed', 'archived', 'DRAFT', 'PUBLISHED', 'CLOSED', 'ARCHIVED').optional().default('draft'),
+    salaryRange: Joi.object({
+      min: Joi.number().positive().optional(),
+      max: Joi.number().positive().optional(),
+      currency: Joi.string().length(3).uppercase().optional().default('USD')
+    }).optional(),
+    salary: Joi.string().max(100).optional(), // legacy alias for simple salary string
+    benefits: Joi.array().items(Joi.string().max(100).trim()).max(20).optional().default([]),
+    skills: Joi.array().items(Joi.string().max(50).trim()).max(30).optional().default([]),
+    experienceLevel: Joi.string().valid('entry', 'mid', 'senior', 'lead', 'principal', 'junior', 'executive').optional().default('mid'),
+    applicationDeadline: Joi.date().iso().greater('now').optional(),
+    deadline: Joi.date().iso().greater('now').optional(), // legacy alias
+    startDate: Joi.date().iso().optional(),
+    tags: Joi.array().items(Joi.string().max(30).trim()).max(10).optional().default([]),
   }),
 
   update: Joi.object({
-    title: Joi.string().min(3).max(100).optional(),
-    description: Joi.string().min(10).max(5000).optional(),
-    requirements: Joi.array().items(Joi.string().min(3).max(200)).min(1).max(20).optional(),
-    deadline: Joi.date().iso().greater('now').optional(),
-    status: commonSchemas.jobStatus.optional(),
+    title: Joi.string().min(3).max(100).trim().optional(),
+    description: Joi.string().min(10).max(5000).trim().optional(),
+    requirements: Joi.array().items(Joi.string().min(3).max(200).trim()).min(1).max(20).optional(),
+    responsibilities: Joi.array().items(Joi.string().min(3).max(200).trim()).max(20).optional(),
+    qualifications: Joi.array().items(Joi.string().min(3).max(200).trim()).max(20).optional(),
+    department: Joi.string().min(2).max(50).trim().optional(),
+    location: Joi.string().min(2).max(100).trim().optional(),
+    remotePolicy: Joi.string().valid('remote', 'hybrid', 'on_site', 'REMOTE', 'HYBRID', 'ON_SITE').optional(),
+    jobType: Joi.string().valid('full_time', 'part_time', 'contract', 'internship', 'freelance', 'FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP', 'FREELANCE').optional(),
+    type: Joi.string().valid('full_time', 'part_time', 'contract', 'internship', 'freelance', 'Full-time', 'Part-time', 'Contract', 'Internship', 'Freelance').optional(), // frontend compatibility
+    status: Joi.string().valid('draft', 'published', 'closed', 'archived', 'DRAFT', 'PUBLISHED', 'CLOSED', 'ARCHIVED').optional(),
+    salaryRange: Joi.object({
+      min: Joi.number().positive().optional(),
+      max: Joi.number().positive().optional(),
+      currency: Joi.string().length(3).uppercase().optional().default('USD')
+    }).optional(),
+    salary: Joi.string().max(100).optional(), // legacy alias
+    benefits: Joi.array().items(Joi.string().max(100).trim()).max(20).optional(),
+    skills: Joi.array().items(Joi.string().max(50).trim()).max(30).optional(),
+    experienceLevel: Joi.string().valid('entry', 'mid', 'senior', 'lead', 'principal', 'junior', 'executive').optional(),
+    applicationDeadline: Joi.date().iso().greater('now').optional(),
+    startDate: Joi.date().iso().optional(),
+    tags: Joi.array().items(Joi.string().max(30).trim()).max(10).optional(),
   }),
 };
 
@@ -212,4 +254,371 @@ export const validatePassword = (password: string): boolean => {
 export const validateUUID = (uuid: string): boolean => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRegex.test(uuid);
+};
+
+// Generic validation interface for request validation
+export interface ValidationRule {
+  required?: boolean;
+  type?: 'string' | 'number' | 'boolean' | 'email' | 'uuid' | 'array' | 'object';
+  minLength?: number;
+  maxLength?: number;
+  min?: number;
+  max?: number;
+  pattern?: RegExp;
+  enum?: any[];
+  custom?: (value: any) => boolean | string;
+}
+
+export interface ValidationResult<T = any> {
+  isValid: boolean;
+  data?: T;
+  errors?: Record<string, string>;
+}
+
+export function validateRequest<T = any>(
+  body: string | null,
+  rules: Record<string, ValidationRule>
+): ValidationResult<T> {
+  try {
+    // Parse body if it's a string
+    let data: any;
+    if (typeof body === 'string') {
+      try {
+        data = JSON.parse(body);
+      } catch (parseError) {
+        return {
+          isValid: false,
+          errors: { body: 'Invalid JSON format' }
+        };
+      }
+    } else if (body === null) {
+      data = {};
+    } else {
+      data = body;
+    }
+
+    const errors: Record<string, string> = {};
+
+    // Validate each field according to rules
+    for (const [field, rule] of Object.entries(rules)) {
+      const value = data[field];
+
+      // Check required fields
+      if (rule.required && (value === undefined || value === null || value === '')) {
+        errors[field] = `${field} is required`;
+        continue;
+      }
+
+      // Skip validation if field is not required and not present
+      if (!rule.required && (value === undefined || value === null)) {
+        continue;
+      }
+
+      // Type validation
+      if (rule.type) {
+        const isValidType = validateType(value, rule.type);
+        if (!isValidType) {
+          errors[field] = `${field} must be of type ${rule.type}`;
+          continue;
+        }
+      }
+
+      // String-specific validations
+      if (typeof value === 'string') {
+        if (rule.minLength !== undefined && value.length < rule.minLength) {
+          errors[field] = `${field} must be at least ${rule.minLength} characters`;
+          continue;
+        }
+        if (rule.maxLength !== undefined && value.length > rule.maxLength) {
+          errors[field] = `${field} must be no more than ${rule.maxLength} characters`;
+          continue;
+        }
+        if (rule.pattern && !rule.pattern.test(value)) {
+          errors[field] = `${field} format is invalid`;
+          continue;
+        }
+      }
+
+      // Number-specific validations
+      if (typeof value === 'number') {
+        if (rule.min !== undefined && value < rule.min) {
+          errors[field] = `${field} must be at least ${rule.min}`;
+          continue;
+        }
+        if (rule.max !== undefined && value > rule.max) {
+          errors[field] = `${field} must be no more than ${rule.max}`;
+          continue;
+        }
+      }
+
+      // Enum validation
+      if (rule.enum && !rule.enum.includes(value)) {
+        errors[field] = `${field} must be one of: ${rule.enum.join(', ')}`;
+        continue;
+      }
+
+      // Custom validation
+      if (rule.custom) {
+        const customResult = rule.custom(value);
+        if (customResult !== true) {
+          errors[field] = typeof customResult === 'string' ? customResult : `${field} is invalid`;
+          continue;
+        }
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      return {
+        isValid: false,
+        errors
+      };
+    }
+
+    return {
+      isValid: true,
+      data: data as T
+    };
+
+  } catch (error) {
+    return {
+      isValid: false,
+      errors: {
+        general: error instanceof Error ? error.message : 'Validation failed'
+      }
+    };
+  }
+}
+
+function validateType(value: any, type: string): boolean {
+  switch (type) {
+    case 'string':
+      return typeof value === 'string';
+    case 'number':
+      return typeof value === 'number' && !isNaN(value);
+    case 'boolean':
+      return typeof value === 'boolean';
+    case 'array':
+      return Array.isArray(value);
+    case 'object':
+      return typeof value === 'object' && value !== null && !Array.isArray(value);
+    case 'email':
+      return typeof value === 'string' && validateEmail(value);
+    case 'uuid':
+      return typeof value === 'string' && validateUUID(value);
+    default:
+      return true;
+  }
+}
+
+// Additional job-specific validation functions
+export const validateJobId = (jobId: string): boolean => {
+  return typeof jobId === 'string' && jobId.length > 0 && validateUUID(jobId);
+};
+
+/**
+ * Validate job status transition
+ */
+export const validateJobStatusTransition = (
+  currentStatus: string,
+  newStatus: string
+): { isValid: boolean; error?: string } => {
+  const validTransitions: Record<string, string[]> = {
+    draft: ['published', 'archived'],
+    published: ['closed', 'archived'],
+    closed: ['published', 'archived'],
+    archived: [] // Cannot transition from archived
+  };
+
+  const normalizedCurrent = currentStatus.toLowerCase();
+  const normalizedNew = newStatus.toLowerCase();
+
+  if (!validTransitions[normalizedCurrent]) {
+    return {
+      isValid: false,
+      error: `Invalid current status: ${currentStatus}`
+    };
+  }
+
+  if (!validTransitions[normalizedCurrent].includes(normalizedNew)) {
+    return {
+      isValid: false,
+      error: `Cannot transition from ${currentStatus} to ${newStatus}`
+    };
+  }
+
+  return { isValid: true };
+};
+
+/**
+ * Transform job object for consistent API response
+ */
+export const transformJobForResponse = (job: any): any => {
+  if (!job) return job;
+
+  return {
+    id: job.jobId || job.id,
+    title: job.title,
+    description: job.description || '',
+    department: job.department || 'General',
+    location: job.location || 'Remote',
+    type: job.jobType || job.type || 'full_time',
+    requirements: Array.isArray(job.requirements) ? job.requirements : (job.requirements ? [job.requirements] : []),
+    responsibilities: Array.isArray(job.responsibilities) ? job.responsibilities : (job.responsibilities ? [job.responsibilities] : []),
+    qualifications: Array.isArray(job.qualifications) ? job.qualifications : (job.qualifications ? [job.qualifications] : []),
+    benefits: Array.isArray(job.benefits) ? job.benefits : (job.benefits ? [job.benefits] : []),
+    skills: Array.isArray(job.skills) ? job.skills : (job.skills ? [job.skills] : []),
+    remotePolicy: job.remotePolicy || 'remote',
+    experienceLevel: job.experienceLevel || 'mid',
+    salaryRange: job.salaryRange || null,
+    applicationDeadline: job.applicationDeadline || null,
+    startDate: job.startDate || null,
+    createdAt: job.createdAt || new Date().toISOString(),
+    updatedAt: job.updatedAt || job.createdAt || new Date().toISOString(),
+    status: job.status || 'draft',
+    applicationCount: job.applicationCount || 0,
+    viewCount: job.viewCount || 0,
+    tags: Array.isArray(job.tags) ? job.tags : [],
+    createdBy: job.createdBy,
+    publishedAt: job.publishedAt,
+    closedAt: job.closedAt
+  };
+};
+
+export const validateUpdateJobRequest = (request: any): ValidationResult => {
+  try {
+    // Normalize field names before validation
+    const normalizedRequest = normalizeJobRequest(request);
+
+    // Use Joi schema for thorough validation
+    const { error, value } = jobSchemas.update.validate(normalizedRequest, {
+      stripUnknown: true,
+      abortEarly: false,
+    });
+
+    if (error) {
+      const errors = error.details.reduce((acc, curr) => {
+        acc[curr.path.join('.')] = curr.message;
+        return acc;
+      }, {} as Record<string, string>);
+
+      return {
+        isValid: false,
+        errors
+      };
+    }
+
+    return {
+      isValid: true,
+      data: value
+    };
+
+  } catch (validationError) {
+    return {
+      isValid: false,
+      errors: {
+        general: validationError instanceof Error ? validationError.message : 'Validation failed'
+      }
+    };
+  }
+};
+
+/**
+ * Normalize job request to handle various frontend field name formats
+ */
+export const normalizeJobRequest = (request: any): any => {
+  if (!request || typeof request !== 'object') {
+    return request;
+  }
+
+  const normalized = { ...request };
+
+  // Handle legacy/frontend field name mappings
+  if (request.type && !request.jobType) {
+    normalized.jobType = request.type;
+  }
+  if (request.employmentType && !request.jobType) {
+    normalized.jobType = request.employmentType;
+  }
+  if (request.deadline && !request.applicationDeadline) {
+    normalized.applicationDeadline = request.deadline;
+  }
+  if (request.salary && !request.salaryRange && typeof request.salary === 'string') {
+    // Convert simple salary string to object if needed
+    normalized.salaryRange = { min: 0, max: 0, currency: 'USD' };
+  }
+
+  // Normalize enum values to lowercase
+  if (normalized.jobType) {
+    normalized.jobType = normalized.jobType.toLowerCase();
+  }
+  if (normalized.remotePolicy) {
+    normalized.remotePolicy = normalized.remotePolicy.toLowerCase();
+  }
+  if (normalized.status) {
+    normalized.status = normalized.status.toLowerCase();
+  }
+  if (normalized.experienceLevel) {
+    normalized.experienceLevel = normalized.experienceLevel.toLowerCase();
+  }
+
+  // Ensure arrays are properly formatted
+  const arrayFields = ['requirements', 'responsibilities', 'qualifications', 'benefits', 'skills', 'tags'];
+  arrayFields.forEach(field => {
+    if (normalized[field] && !Array.isArray(normalized[field])) {
+      if (typeof normalized[field] === 'string') {
+        // Split comma-separated strings into arrays
+        normalized[field] = normalized[field].split(',').map((item: string) => item.trim()).filter(Boolean);
+      } else {
+        // Convert single item to array
+        normalized[field] = [normalized[field]];
+      }
+    }
+  });
+
+  // Remove undefined/null values
+  Object.keys(normalized).forEach(key => {
+    if (normalized[key] === undefined || normalized[key] === null) {
+      delete normalized[key];
+    }
+  });
+
+  return normalized;
+};
+
+export const validateCreateJobRequest = (request: any): ValidationResult => {
+  try {
+    // Normalize field names before validation
+    const normalizedRequest = normalizeJobRequest(request);
+
+    // Use Joi schema for thorough validation
+    const { error, value } = jobSchemas.create.validate(normalizedRequest, {
+      stripUnknown: true,
+      abortEarly: false,
+    });
+
+    if (error) {
+      const errors = error.details.reduce((acc, curr) => {
+        acc[curr.path.join('.')] = curr.message;
+        return acc;
+      }, {} as Record<string, string>);
+
+      return {
+        isValid: false,
+        errors
+      };
+    }
+
+    return {
+      isValid: true,
+      data: value
+    };
+
+  } catch (validationError) {
+    return {
+      isValid: false,
+      errors: {
+        general: validationError instanceof Error ? validationError.message : 'Validation failed'
+      }
+    };
+  }
 };

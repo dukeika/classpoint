@@ -203,7 +203,7 @@ export enum JobStatus {
   PUBLISHED = 'published',
   CLOSED = 'closed',
   ARCHIVED = 'archived'
-}
+}\n\n// Legacy enum values for backward compatibility\nexport const JobStatusAliases = {\n  'DRAFT': JobStatus.DRAFT,\n  'PUBLISHED': JobStatus.PUBLISHED,\n  'CLOSED': JobStatus.CLOSED,\n  'ARCHIVED': JobStatus.ARCHIVED,\n  'active': JobStatus.PUBLISHED,\n  'Active': JobStatus.PUBLISHED,\n  'ACTIVE': JobStatus.PUBLISHED\n};"
 
 export enum JobType {
   FULL_TIME = 'full_time',
@@ -213,11 +213,7 @@ export enum JobType {
   FREELANCE = 'freelance'
 }
 
-export enum RemotePolicy {
-  REMOTE = 'remote',
-  HYBRID = 'hybrid',
-  ON_SITE = 'on_site'
-}
+// Legacy enum values for backward compatibility\nexport const JobTypeAliases = {\n  'FULL_TIME': JobType.FULL_TIME,\n  'PART_TIME': JobType.PART_TIME,\n  'CONTRACT': JobType.CONTRACT,\n  'INTERNSHIP': JobType.INTERNSHIP,\n  'FREELANCE': JobType.FREELANCE,\n  'Full-time': JobType.FULL_TIME,\n  'Part-time': JobType.PART_TIME,\n  'Contract': JobType.CONTRACT,\n  'Internship': JobType.INTERNSHIP,\n  'Freelance': JobType.FREELANCE\n};\n\nexport enum RemotePolicy {\n  REMOTE = 'remote',\n  HYBRID = 'hybrid',\n  ON_SITE = 'on_site'\n}\n\n// Legacy enum values for backward compatibility\nexport const RemotePolicyAliases = {\n  'REMOTE': RemotePolicy.REMOTE,\n  'HYBRID': RemotePolicy.HYBRID,\n  'ON_SITE': RemotePolicy.ON_SITE,\n  'Remote': RemotePolicy.REMOTE,\n  'Hybrid': RemotePolicy.HYBRID,\n  'On-site': RemotePolicy.ON_SITE\n};"
 
 export interface Job {
   jobId: UUID;
@@ -735,7 +731,7 @@ export interface UserEntity extends DynamoDBEntity, Omit<BaseUser, 'userId'> {
 // API Request/Response Types
 // ========================================
 
-export interface AuthenticatedRequest<T = unknown> extends LambdaEvent {
+export interface AuthenticatedRequest<T = unknown> extends Omit<LambdaEvent, 'body'> {
   user: BaseUser | Applicant | Admin;
   body: T;
 }
@@ -884,7 +880,4 @@ export interface ApplicationStageChangedEvent extends DomainEvent {
 }
 
 // Export all types for easy importing
-export * from './errors';
-export * from './logger';
-export * from './security';
-export * from './performance';
+// Note: Utility modules exported separately to avoid circular dependencies

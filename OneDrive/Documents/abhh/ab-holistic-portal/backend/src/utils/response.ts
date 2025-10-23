@@ -14,18 +14,48 @@ export interface ApiResponse<T = unknown> {
   requestId?: string;
 }
 
+// Helper function to determine allowed origin
+const getAllowedOrigin = (requestOrigin?: string): string => {
+  const corsOrigins = process.env.CORS_ORIGINS || 'https://localhost:3000';
+  const allowedOrigins = corsOrigins.split(',').map(origin => origin.trim());
+
+  // If request origin is provided and is in allowed origins, use it
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+
+  // Check for wildcard
+  if (allowedOrigins.includes('*')) {
+    return '*';
+  }
+
+  // Default to CloudFront origin for production
+  const cloudFrontOrigin = 'https://d8wgee9e93vts.cloudfront.net';
+  if (allowedOrigins.includes(cloudFrontOrigin)) {
+    return cloudFrontOrigin;
+  }
+
+  // Fallback to first allowed origin
+  return allowedOrigins[0] || 'https://localhost:3000';
+};
+
 export const createResponse = <T>(
   statusCode: number,
-  body: ApiResponse<T>,
+  body: Partial<ApiResponse<T>> & { success: boolean },
   additionalHeaders: Record<string, string> = {},
-  includeSecurityHeaders: boolean = true
+  includeSecurityHeaders: boolean = true,
+  requestOrigin?: string
 ): APIGatewayProxyResult => {
+  const allowOrigin = getAllowedOrigin(requestOrigin);
+
   const corsHeaders = {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Requested-With',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
     'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin'
   };
 
   const securityHeaders = includeSecurityHeaders ? SecurityHeaders.getSecurityHeaders() : {};
@@ -36,21 +66,28 @@ export const createResponse = <T>(
     ...additionalHeaders,
   };
 
+  // Ensure timestamp is always present
+  const completeBody: ApiResponse<T> = {
+    ...body,
+    timestamp: body.timestamp || new Date().toISOString(),
+  };
+
   return {
     statusCode,
     headers: defaultHeaders,
-    body: JSON.stringify(body),
+    body: JSON.stringify(completeBody),
   };
 };
 
 export const successResponse = <T>(
   data?: T,
   message?: string,
-  statusCode: number = 200
+  statusCode: number = 200,
+  requestOrigin?: string
 ): APIGatewayProxyResult => {
-  const response: ApiResponse<T> = {
+  const response: Partial<ApiResponse<T>> & { success: boolean } = {
     success: true,
-    timestamp: new Date().toISOString(),
+    
   };
 
   if (data !== undefined) {
@@ -61,7 +98,7 @@ export const successResponse = <T>(
     response.message = message;
   }
 
-  return createResponse(statusCode, response);
+  return createResponse(statusCode, response, {}, true, requestOrigin);
 };
 
 export const errorResponse = (
@@ -70,7 +107,8 @@ export const errorResponse = (
     message: string;
     details?: Record<string, unknown>;
   },
-  statusCode: number = 500
+  statusCode: number = 500,
+  requestOrigin?: string
 ): APIGatewayProxyResult => {
   console.error('API Error:', error);
 
@@ -78,12 +116,13 @@ export const errorResponse = (
     success: false,
     error,
     timestamp: new Date().toISOString(),
-  });
+  }, {}, true, requestOrigin);
 };
 
 export const validationErrorResponse = (
   message: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
+  requestOrigin?: string
 ): APIGatewayProxyResult => {
   const errorObj: {
     code: string;
@@ -98,60 +137,69 @@ export const validationErrorResponse = (
     errorObj.details = details;
   }
 
-  return errorResponse(errorObj, 400);
+  return errorResponse(errorObj, 400, requestOrigin);
 };
 
 export const unauthorizedResponse = (
-  message: string = 'Unauthorized'
+  message: string = 'Unauthorized',
+  requestOrigin?: string
 ): APIGatewayProxyResult => {
   return errorResponse(
     {
       code: 'UNAUTHORIZED',
       message,
     },
-    401
+    401,
+    requestOrigin
   );
 };
 
 export const forbiddenResponse = (
-  message: string = 'Forbidden'
+  message: string = 'Forbidden',
+  requestOrigin?: string
 ): APIGatewayProxyResult => {
   return errorResponse(
     {
       code: 'FORBIDDEN',
       message,
     },
-    403
+    403,
+    requestOrigin
   );
 };
 
 export const notFoundResponse = (
-  resource: string = 'Resource'
+  resource: string = 'Resource',
+  requestOrigin?: string
 ): APIGatewayProxyResult => {
   return errorResponse(
     {
       code: 'NOT_FOUND',
       message: `${resource} not found`,
     },
-    404
+    404,
+    requestOrigin
   );
 };
 
 export const conflictResponse = (
-  message: string
+  message: string,
+  requestOrigin?: string
 ): APIGatewayProxyResult => {
   return errorResponse(
     {
       code: 'CONFLICT',
       message,
     },
-    409
+    409,
+    requestOrigin
   );
 };
 
 export const internalServerErrorResponse = (
   message: string = 'Internal server error',
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
+  requestOrigin?: string
 ): APIGatewayProxyResult => {
   const errorObj: {
     code: string;
@@ -166,5 +214,23 @@ export const internalServerErrorResponse = (
     errorObj.details = details;
   }
 
-  return errorResponse(errorObj, 500);
+  return errorResponse(errorObj, 500, requestOrigin);
+};
+
+// CORS preflight response handler
+export const corsPreflightResponse = (requestOrigin?: string): APIGatewayProxyResult => {
+  const allowOrigin = getAllowedOrigin(requestOrigin);
+
+  return {
+    statusCode: 200,
+    headers: {
+      'Access-Control-Allow-Origin': allowOrigin,
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Requested-With',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Max-Age': '86400',
+      'Vary': 'Origin'
+    },
+    body: ''
+  };
 };

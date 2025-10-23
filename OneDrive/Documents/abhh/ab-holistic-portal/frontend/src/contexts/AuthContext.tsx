@@ -159,10 +159,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const initializeAuth = useCallback(async () => {
     try {
+      console.log('[AuthContext] Initializing authentication...');
       dispatch({ type: 'AUTH_START' });
 
       // First, check if we have tokens in the URL hash (returning from Cognito)
       if (authService.hasTokensInUrl()) {
+        console.log('[AuthContext] Found tokens in URL hash');
         try {
           const tokens = authService.parseTokensFromHash(window.location.hash);
           if (tokens) {
@@ -174,11 +176,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             // Get user profile
             const user = await authService.getUserProfile(tokens);
+            console.log('[AuthContext] Hash auth successful, user:', user.email);
             dispatch({ type: 'AUTH_SUCCESS', payload: { user, tokens } });
             return;
           }
         } catch (hashError) {
-          console.error('Error parsing tokens from hash:', hashError);
+          console.error('[AuthContext] Error parsing tokens from hash:', hashError);
           authService.clearTokensFromUrl();
           const authError = hashError as AuthError;
           dispatch({ type: 'AUTH_ERROR', payload: authError });
@@ -188,30 +191,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Check for stored tokens
       const storedTokens = await tokenManager.getTokens();
+      console.log('[AuthContext] Has stored tokens:', !!storedTokens);
+
       if (!storedTokens) {
+        console.log('[AuthContext] No tokens found, setting unauthenticated');
         dispatch({ type: 'LOGOUT_SUCCESS' });
         return;
       }
 
       // Check if tokens are expired
       const areExpired = await tokenManager.areTokensExpired();
+      console.log('[AuthContext] Tokens expired:', areExpired);
+
       if (areExpired) {
         // Implicit flow doesn't support refresh tokens, so we need to re-authenticate
         await tokenManager.removeTokens();
+        console.log('[AuthContext] Tokens expired, cleared');
         dispatch({ type: 'LOGOUT_SUCCESS' });
       } else {
         // Tokens are valid, get user profile
         try {
           const user = await authService.getUserProfile(storedTokens);
+          console.log('[AuthContext] Auth successful, user:', user.email, 'role:', user.role);
           dispatch({ type: 'AUTH_SUCCESS', payload: { user, tokens: storedTokens } });
         } catch (profileError) {
           // Invalid tokens, clear and logout
+          console.error('[AuthContext] Invalid tokens:', profileError);
           await tokenManager.removeTokens();
           dispatch({ type: 'LOGOUT_SUCCESS' });
         }
       }
     } catch (error) {
-      console.error('Auth initialization error:', error);
+      console.error('[AuthContext] Auth initialization error:', error);
       dispatch({ type: 'LOGOUT_SUCCESS' });
     }
   }, []);
@@ -380,6 +391,70 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       channel.close();
     };
   }, [state.status, state.user]);
+
+  /**
+   * Listen for auth callback completion event
+   * This allows the callback page to notify us immediately when auth completes
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleAuthCallbackComplete = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { userProfile, tokens } = customEvent.detail;
+
+      console.log('[AuthContext] Received auth-callback-complete event');
+      console.log('[AuthContext] User from event:', userProfile.email, 'Role:', userProfile.role);
+
+      if (userProfile && tokens) {
+        // Immediately update auth state with the provided data
+        dispatch({
+          type: 'AUTH_SUCCESS',
+          payload: { user: userProfile, tokens }
+        });
+      }
+    };
+
+    window.addEventListener('auth-callback-complete', handleAuthCallbackComplete);
+
+    return () => {
+      window.removeEventListener('auth-callback-complete', handleAuthCallbackComplete);
+    };
+  }, []);
+
+  /**
+   * Listen for localStorage changes (for cross-tab auth sync)
+   * This handles cases where auth happens in another tab
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleStorageChange = (e: StorageEvent) => {
+      // When user data is added to localStorage, re-initialize
+      if (e.key === 'user' && e.newValue && !e.oldValue) {
+        console.log('[AuthContext] Detected user storage change, re-initializing auth');
+        initializeAuth();
+      }
+
+      // When token is added, re-initialize
+      if (e.key === 'token' && e.newValue && !e.oldValue) {
+        console.log('[AuthContext] Detected token storage change, re-initializing auth');
+        initializeAuth();
+      }
+
+      // When user/token is removed, logout
+      if ((e.key === 'user' || e.key === 'token') && !e.newValue && e.oldValue) {
+        console.log('[AuthContext] Detected auth data removal, logging out');
+        dispatch({ type: 'LOGOUT_SUCCESS' });
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [initializeAuth]);
 
   /**
    * Memoized context value

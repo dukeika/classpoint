@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import jwksClient from 'jwks-client';
+import jwksClient from 'jwks-rsa';
 import { CognitoIdentityProviderClient, GetUserCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { JWTPayload, UserRole, Permission } from '../types';
 import { Logger } from './logger';
@@ -126,7 +126,7 @@ export class JWTUtil {
       };
 
     } catch (error) {
-      logger.error('Token validation error:', error);
+      logger.error('Token validation error:', { message: error instanceof Error ? error.message : String(error) });
       return {
         isValid: false,
         error: error instanceof Error ? error.message : 'Token validation failed'
@@ -139,9 +139,9 @@ export class JWTUtil {
    */
   private async getSigningKey(kid: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      this.jwksClient.getSigningKey(kid, (err, key) => {
+      this.jwksClient.getSigningKey(kid, (err: any, key: any) => {
         if (err) {
-          logger.error('Failed to get signing key from JWKS:', err);
+          logger.error('Failed to get signing key from JWKS:', { error: String(err) });
           reject(err);
           return;
         }
@@ -216,7 +216,7 @@ export class JWTUtil {
           });
           await this.cognitoClient.send(getUserCommand);
         } catch (cognitoError) {
-          logger.error('Cognito token verification failed:', cognitoError);
+          logger.error('Cognito token verification failed:', { error: String(cognitoError) });
           return {
             isValid: false,
             error: 'Token rejected by Cognito'
@@ -224,13 +224,25 @@ export class JWTUtil {
         }
       }
 
+      // Convert to our JWTPayload format with default values
+      const jwtPayload: JWTPayload = {
+        sub: verifiedPayload.sub,
+        email: verifiedPayload.email || '',
+        role: this.mapCognitoGroupToRole(verifiedPayload['cognito:groups']),
+        permissions: this.mapRoleToPermissions(this.mapCognitoGroupToRole(verifiedPayload['cognito:groups'])),
+        iat: verifiedPayload.iat,
+        exp: verifiedPayload.exp,
+        iss: verifiedPayload.iss,
+        aud: verifiedPayload.aud
+      };
+
       return {
         isValid: true,
-        payload: verifiedPayload
+        payload: jwtPayload
       };
 
     } catch (error) {
-      logger.error('Cognito token validation error:', error);
+      logger.error('Cognito token validation error:', { error: String(error) });
       return {
         isValid: false,
         error: error instanceof Error ? error.message : 'Token validation failed'
@@ -306,11 +318,22 @@ export class JWTUtil {
       aud: 'ab-holistic-portal-api'
     };
 
-    return jwt.sign(tokenPayload, this.jwtSecret, {
+    const signPayload = {
+      sub: tokenPayload.sub,
+      email: tokenPayload.email,
+      role: tokenPayload.role,
+      permissions: tokenPayload.permissions,
+      iat: tokenPayload.iat,
+      iss: tokenPayload.iss,
+      aud: tokenPayload.aud
+    };
+
+    // Use a simple approach that works with the current JWT library version
+    return jwt.sign(signPayload, this.jwtSecret, {
       expiresIn,
       issuer: 'ab-holistic-portal',
       audience: 'ab-holistic-portal-api'
-    });
+    } as any);
   }
 
   /**
@@ -329,7 +352,7 @@ export class JWTUtil {
       };
 
     } catch (error) {
-      logger.error('Custom token verification failed:', error);
+      logger.error('Custom token verification failed:', { error: String(error) });
       return {
         isValid: false,
         error: error instanceof Error ? error.message : 'Token verification failed'

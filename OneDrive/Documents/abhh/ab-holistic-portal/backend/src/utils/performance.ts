@@ -193,7 +193,6 @@ export class OptimizedDynamoClient {
       const baseClient = new DynamoDBClient({
         region: process.env.REGION || 'us-west-1',
         maxAttempts: 3,
-        requestTimeout: 30000,
         // Connection pooling configuration
         requestHandler: {
           httpOptions: {
@@ -229,7 +228,7 @@ export class OptimizedDynamoClient {
   /**
    * Optimized get item with caching
    */
-  static async getItem<T>(
+  static async getItem<T extends Record<string, any>>(
     tableName: string,
     key: Record<string, unknown>,
     options: QueryOptions = {}
@@ -442,7 +441,7 @@ export class OptimizedDynamoClient {
   /**
    * Optimized put item with cache invalidation
    */
-  static async putItem<T>(
+  static async putItem<T extends Record<string, any>>(
     tableName: string,
     item: T,
     options: QueryOptions = {}
@@ -603,8 +602,7 @@ export class OptimizedS3Client {
     if (!this.client) {
       this.client = new S3Client({
         region: process.env.REGION || 'us-west-1',
-        maxAttempts: 3,
-        requestTimeout: 30000
+        maxAttempts: 3
       });
 
       this.logger.info('S3 client initialized with optimizations');

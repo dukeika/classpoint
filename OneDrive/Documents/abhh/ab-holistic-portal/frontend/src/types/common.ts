@@ -26,6 +26,30 @@ export interface ApiResponse<T = unknown> {
 }
 
 /**
+ * Pagination metadata
+ */
+export interface PaginationResponse {
+  /** Whether there are more pages */
+  hasMore: boolean;
+  /** Next cursor for pagination */
+  nextCursor?: string;
+  /** Total count of items */
+  totalCount?: number;
+  /** Current page number */
+  currentPage?: number;
+  /** Total number of pages */
+  totalPages?: number;
+}
+
+/**
+ * Paginated API response
+ */
+export interface PaginatedResponse<T> extends ApiResponse<T[]> {
+  /** Pagination metadata */
+  pagination: PaginationResponse;
+}
+
+/**
  * Generic error response structure
  */
 export interface ApiError {

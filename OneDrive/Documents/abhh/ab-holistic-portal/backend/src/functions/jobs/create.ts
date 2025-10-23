@@ -1,206 +1,255 @@
-import { APIGatewayProxyHandler, APIGatewayProxyEvent } from 'aws-lambda';
-import { successResponse, errorResponse, validationErrorResponse, forbiddenResponse, corsPreflightResponse } from '../../utils/response';
-import { validateSchema, jobSchemas } from '../../utils/validation';
-import { DatabaseService } from '../../services/database';
-import { JobStatus, JobType, RemotePolicy, Permission } from '../../types';
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { v4 as uuidv4 } from 'uuid';
+import { createResponse } from '../../utils/response';
 import { Logger } from '../../utils/logger';
-import { ErrorHandler } from '../../utils/errors';
+import { UserRole, JobStatus, JobType, RemotePolicy, CreateJobRequest, Job } from '../../types';
+import { validateCreateJobRequest } from '../../utils/validation';
 
-const logger = new Logger('CreateJobFunction');
-const dbService = DatabaseService.getInstance();
+const logger = new Logger('JobCreate');
 
-export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEvent, context) => {
-  // Extract request origin for CORS (needs to be outside try block for error handling)
-  const requestOrigin = event.headers?.origin || event.headers?.Origin || event.headers?.['Origin'];
+const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'us-west-1' });
+const dynamodb = DynamoDBDocumentClient.from(client);
 
-  try {
-    // Initialize logger with request context
-    logger.setRequestContext(context.awsRequestId, undefined, undefined, context.awsRequestId);
-    logger.info('Processing job creation request');
+/**
+ * Create Job Handler
+ *
+ * SECURITY: This endpoint requires authentication via JWT token
+ * - Only admins and super admins can create jobs
+ * - Comprehensive validation of all input fields
+ * - Proper error handling and response formatting
+ * - Data consistency with frontend expectations
+ */
+export const handler = async (
+  event: APIGatewayProxyEvent,
+  context: Context
+): Promise<APIGatewayProxyResult> => {
+    // Extract origin header for CORS
+    const requestOrigin = event.headers['origin'] || event.headers['Origin'];
 
-    // Handle CORS preflight
-    if (event.httpMethod === 'OPTIONS') {
-      return corsPreflightResponse(requestOrigin);
-    }
-
-    // Extract user context from authorizer
-    const userContext = event.requestContext?.authorizer;
-    logger.info('User context from authorizer', {
-      hasContext: !!userContext,
-      userId: userContext?.userId,
-      role: userContext?.role,
-      permissions: userContext?.permissions,
-      fullContext: userContext
+    logger.info('Job creation request received', {
+        requestId: context.awsRequestId,
+        sourceIp: event.requestContext.identity.sourceIp,
+        userAgent: event.headers['User-Agent'],
+        origin: requestOrigin
     });
 
-    if (!userContext || !userContext.userId) {
-      logger.warn('Missing user context in request', {
-        requestContext: event.requestContext,
-        authorizer: event.requestContext?.authorizer
-      });
-      return forbiddenResponse('Authorization required to create jobs', requestOrigin);
-    }
-
-    // Set user ID in logger
-    logger.setRequestContext(context.awsRequestId, userContext.userId, undefined, context.awsRequestId);
-
-    // Check if user has permission to create jobs
-    let permissions: string[] = [];
     try {
-      permissions = JSON.parse(userContext.permissions || '[]');
+        // CRITICAL SECURITY: Verify user authentication from authorizer
+        const authContext = event.requestContext?.authorizer;
+        if (!authContext || !authContext.principalId) {
+            logger.warn('Unauthorized job creation attempt', {
+                sourceIp: event.requestContext.identity.sourceIp,
+                userAgent: event.headers['User-Agent']
+            });
+            return createResponse(401, {
+                success: false,
+                error: {
+                    code: 'UNAUTHORIZED',
+                    message: 'Authentication required to create jobs'
+                }
+            }, {}, true, requestOrigin);
+        }
+
+        const userId = authContext.userId || authContext.principalId;
+        const userRole = authContext.role as UserRole;
+        const userEmail = authContext.email;
+
+        // SECURITY: Only admins can create jobs
+        if (userRole !== UserRole.ADMIN && userRole !== UserRole.SUPER_ADMIN) {
+            logger.warn('Non-admin user attempting to create job', {
+                userId,
+                userRole,
+                userEmail
+            });
+            return createResponse(403, {
+                success: false,
+                error: {
+                    code: 'FORBIDDEN',
+                    message: 'Only administrators can create jobs'
+                }
+            }, {}, true, requestOrigin);
+        }
+
+        // Parse and validate request body
+        let requestBody: CreateJobRequest;
+        try {
+            requestBody = JSON.parse(event.body || '{}');
+        } catch (parseError) {
+            logger.warn('Invalid JSON in request body', {
+                userId,
+                parseError: parseError instanceof Error ? parseError.message : 'Unknown error'
+            });
+            return createResponse(400, {
+                success: false,
+                error: {
+                    code: 'INVALID_REQUEST',
+                    message: 'Invalid JSON in request body'
+                }
+            }, {}, true, requestOrigin);
+        }
+
+        // Comprehensive validation using Joi schema
+        const validationResult = validateCreateJobRequest(requestBody);
+        if (!validationResult.isValid) {
+            logger.warn('Invalid job creation request', {
+                userId,
+                validationErrors: validationResult.errors
+            });
+            return createResponse(400, {
+                success: false,
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: 'Invalid job data provided',
+                    details: validationResult.errors
+                }
+            }, {}, true, requestOrigin);
+        }
+
+        const validatedData = validationResult.data as CreateJobRequest;
+
+        logger.info('Authenticated admin creating job', {
+            userId,
+            userRole,
+            userEmail,
+            jobTitle: validatedData.title
+        });
+
+        const now = new Date().toISOString();
+        const jobId = uuidv4();
+
+        // Create comprehensive job object with proper typing
+        const job: Job = {
+            jobId,
+            title: validatedData.title.trim(),
+            description: validatedData.description.trim(),
+            requirements: validatedData.requirements || [],
+            responsibilities: validatedData.responsibilities || [],
+            qualifications: validatedData.qualifications || [],
+            department: validatedData.department?.trim() || 'General',
+            location: validatedData.location?.trim() || 'Remote',
+            remotePolicy: validatedData.remotePolicy || RemotePolicy.REMOTE,
+            jobType: validatedData.jobType || JobType.FULL_TIME,
+            status: JobStatus.DRAFT, // Start as draft, can be published later
+            salaryRange: validatedData.salaryRange || undefined,
+            benefits: validatedData.benefits || [],
+            skills: validatedData.skills || [],
+            experienceLevel: validatedData.experienceLevel || 'mid',
+            applicationDeadline: validatedData.applicationDeadline || undefined,
+            startDate: validatedData.startDate || undefined,
+            createdBy: userId,
+            createdAt: now,
+            updatedAt: now,
+            applicationCount: 0,
+            viewCount: 0,
+            tags: validatedData.tags || []
+        };
+
+        // Add EntityType for DynamoDB compatibility
+        const jobEntity = {
+            ...job,
+            EntityType: 'Job'
+        };
+
+        // Save to DynamoDB
+        const tableName = process.env.JOBS_TABLE;
+        if (!tableName) {
+            logger.error('JOBS_TABLE environment variable not configured');
+            return createResponse(500, {
+                success: false,
+                error: {
+                    code: 'CONFIGURATION_ERROR',
+                    message: 'Database configuration error'
+                }
+            }, {}, true, requestOrigin);
+        }
+
+        logger.info('Saving job to database', {
+            tableName,
+            jobId,
+            userId,
+            jobTitle: job.title
+        });
+
+        const params = {
+            TableName: tableName,
+            Item: jobEntity,
+            ConditionExpression: 'attribute_not_exists(jobId)'
+        };
+
+        await dynamodb.send(new PutCommand(params));
+
+        logger.info('Job created successfully', {
+            jobId,
+            jobTitle: job.title,
+            jobStatus: job.status,
+            userId,
+            userRole
+        });
+
+        // Transform job for frontend response
+        const transformedJob = {
+            id: job.jobId,
+            title: job.title,
+            description: job.description,
+            department: job.department,
+            location: job.location,
+            type: job.jobType,
+            requirements: job.requirements,
+            responsibilities: job.responsibilities,
+            qualifications: job.qualifications,
+            benefits: job.benefits,
+            skills: job.skills,
+            remotePolicy: job.remotePolicy,
+            experienceLevel: job.experienceLevel,
+            salaryRange: job.salaryRange,
+            applicationDeadline: job.applicationDeadline,
+            startDate: job.startDate,
+            createdAt: job.createdAt,
+            updatedAt: job.updatedAt,
+            status: job.status,
+            applicationCount: job.applicationCount,
+            viewCount: job.viewCount,
+            tags: job.tags,
+            createdBy: job.createdBy
+        };
+
+        return createResponse(201, {
+            success: true,
+            data: {
+                job: transformedJob
+            },
+            message: 'Job created successfully'
+        }, {}, true, requestOrigin);
+
     } catch (error) {
-      logger.warn('Failed to parse user permissions', { permissions: userContext.permissions, error });
-      permissions = [];
+        logger.error('Failed to create job', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+            userId: event.requestContext?.authorizer?.userId,
+            userRole: event.requestContext?.authorizer?.role
+        });
+
+        // Handle specific DynamoDB errors
+        if (error && typeof error === 'object' && 'name' in error && error.name === 'ConditionalCheckFailedException') {
+            return createResponse(409, {
+                success: false,
+                error: {
+                    code: 'CONFLICT',
+                    message: 'Job with this ID already exists'
+                }
+            }, {}, true, requestOrigin);
+        }
+
+        return createResponse(500, {
+            success: false,
+            error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Failed to create job'
+            }
+        }, {}, true, requestOrigin);
     }
-
-    logger.info('Checking user permissions for job creation', {
-      userId: userContext.userId,
-      userRole: userContext.role,
-      parsedPermissions: permissions,
-      requiredPermission: Permission.CREATE_JOB,
-      hasPermission: permissions.includes(Permission.CREATE_JOB)
-    });
-
-    // Check both permission and role for additional validation
-    const isAdmin = userContext.role === 'admin' || userContext.role === 'super_admin';
-    const hasCreatePermission = permissions.includes(Permission.CREATE_JOB);
-
-    if (!hasCreatePermission && !isAdmin) {
-      logger.warn('User lacks permission to create jobs', {
-        userId: userContext.userId,
-        role: userContext.role,
-        permissions: permissions,
-        isAdmin,
-        hasCreatePermission
-      });
-      return forbiddenResponse('Insufficient permissions to create jobs', requestOrigin);
-    }
-
-    // Parse and validate request body
-    if (!event.body) {
-      logger.warn('Request body is empty');
-      return validationErrorResponse('Request body is required', {}, requestOrigin);
-    }
-
-    let body: any;
-    try {
-      body = JSON.parse(event.body);
-    } catch (error) {
-      logger.warn('Failed to parse request body as JSON', { body: event.body, error });
-      return validationErrorResponse('Invalid JSON in request body', { error: 'Invalid JSON format' }, requestOrigin);
-    }
-
-    const validatedData = validateSchema(jobSchemas.create, body);
-
-    // Create job record
-    const jobId = dbService.generateId();
-    const now = dbService.getTimestamp();
-
-    const jobData = {
-      // DynamoDB keys
-      jobId,
-
-      // Job basic information
-      title: validatedData.title,
-      description: validatedData.description,
-      requirements: validatedData.requirements,
-
-      // Optional fields with defaults
-      responsibilities: validatedData.responsibilities || [],
-      qualifications: validatedData.qualifications || [],
-      department: validatedData.department || 'General',
-      location: validatedData.location || 'Remote',
-      remotePolicy: validatedData.remotePolicy || RemotePolicy.REMOTE,
-      jobType: validatedData.jobType || validatedData.employmentType || JobType.FULL_TIME,
-      status: validatedData.status || JobStatus.DRAFT,
-
-      // Salary and benefits
-      salaryRange: validatedData.salaryRange || validatedData.salary,
-      benefits: validatedData.benefits || [],
-
-      // Skills and experience
-      skills: validatedData.skills || [],
-      experienceLevel: validatedData.experienceLevel || 'mid',
-
-      // Dates
-      applicationDeadline: validatedData.applicationDeadline || validatedData.deadline,
-      startDate: validatedData.startDate,
-
-      // Metadata
-      createdBy: userContext.userId,
-      createdAt: now,
-      updatedAt: now,
-      tags: validatedData.tags || [],
-
-      // Counters
-      applicationCount: 0,
-      viewCount: 0,
-
-      // Entity type for DynamoDB
-      EntityType: 'Job'
-    };
-
-    // Validate required environment variables
-    const jobsTable = process.env.JOBS_TABLE;
-    if (!jobsTable) {
-      logger.error('JOBS_TABLE environment variable not set');
-      throw new Error('Database configuration error');
-    }
-
-    logger.debug('Creating job in database', { table: jobsTable, jobId, title: validatedData.title });
-
-    // Save job to database
-    const createdJob = await dbService.putItem(
-      jobsTable,
-      jobData,
-      'attribute_not_exists(jobId)'
-    );
-
-    logger.info('Job created successfully', {
-      jobId,
-      title: validatedData.title,
-      createdBy: userContext.userId,
-      userRole: userContext.role
-    });
-
-    // Return sanitized job data (remove internal DynamoDB keys)
-    const responseJob = {
-      jobId: createdJob.jobId,
-      title: createdJob.title,
-      description: createdJob.description,
-      requirements: createdJob.requirements,
-      responsibilities: createdJob.responsibilities,
-      qualifications: createdJob.qualifications,
-      department: createdJob.department,
-      location: createdJob.location,
-      remotePolicy: createdJob.remotePolicy,
-      jobType: createdJob.jobType,
-      status: createdJob.status,
-      salaryRange: createdJob.salaryRange,
-      benefits: createdJob.benefits,
-      skills: createdJob.skills,
-      experienceLevel: createdJob.experienceLevel,
-      applicationDeadline: createdJob.applicationDeadline,
-      startDate: createdJob.startDate,
-      createdBy: createdJob.createdBy,
-      createdAt: createdJob.createdAt,
-      updatedAt: createdJob.updatedAt,
-      tags: createdJob.tags,
-      applicationCount: createdJob.applicationCount,
-      viewCount: createdJob.viewCount
-    };
-
-    return successResponse(responseJob, 'Job created successfully', 201, requestOrigin);
-
-  } catch (error) {
-    logger.error('Job creation error:', { error: error instanceof Error ? error.message : error, stack: error instanceof Error ? error.stack : undefined });
-
-    // Handle validation errors specifically
-    if (error instanceof Error && error.name === 'ValidationError') {
-      return validationErrorResponse(error.message, (error as any).details, requestOrigin);
-    }
-
-    // Use centralized error handling for other errors
-    return ErrorHandler.handleError(error, context.awsRequestId, userContext?.userId, undefined, requestOrigin);
-  }
 };
+
+export default handler;

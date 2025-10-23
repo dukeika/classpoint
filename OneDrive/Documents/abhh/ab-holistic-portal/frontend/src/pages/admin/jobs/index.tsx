@@ -1,481 +1,466 @@
-import React, { useState, useEffect } from 'react';
-import Head from 'next/head';
+/**
+ * Admin Jobs Management Page
+ * Lists and manages all jobs for administrators
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { NextPage } from 'next';
 import Link from 'next/link';
-import { useAuth } from '../../../contexts/AuthContext';
 import Layout from '../../../components/shared/Layout';
-import ProtectedRoute from '../../../components/auth/ProtectedRoute';
+import Card from '../../../components/shared/Card';
 import Button from '../../../components/shared/Button';
-import { Job } from '../../../types/job';
+import Input from '../../../components/shared/Input';
+import Badge from '../../../components/shared/Badge';
+import LoadingSpinner from '../../../components/shared/LoadingSpinner';
+import { ProtectedRoute } from '../../../components/auth/ProtectedRoute';
+import { JobListErrorBoundary } from '../../../components/shared';
+import { jobService } from '../../../services/jobService';
+import { Job, JobFilters, JOB_TYPES, REMOTE_POLICIES, EXPERIENCE_LEVELS, JOB_STATUSES } from '../../../types/job';
+import { PaginatedResponse } from '../../../types/common';
 
-// Direct API integration without existing problematic services
-const API_BASE_URL = 'https://04efp4qnv4.execute-api.us-west-1.amazonaws.com/prod';
 
-interface ApiResponse {
-  jobs: Job[];
-  pagination?: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-  message?: string;
-}
-
-const NewAdminJobsPage: React.FC = () => {
-  const { user } = useAuth();
+const AdminJobsComponent: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (user) {
-      loadAdminJobs();
-    }
-  }, [user]);
-
-  const getAuthToken = (): string | null => {
-    // Try multiple token storage locations
-    return localStorage.getItem('accessToken') ||
-           localStorage.getItem('authToken') ||
-           localStorage.getItem('jwt') ||
-           sessionStorage.getItem('accessToken');
-  };
-
-  const loadAdminJobs = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      console.log('🔄 Loading admin jobs from API...');
-      console.log('User:', user);
-
-      const token = getAuthToken();
-      console.log('Auth token available:', !!token);
-
-      if (!token) {
-        throw new Error('No authentication token found. Please log in again.');
-      }
-
-      // Use the my=true parameter to get only jobs created by this admin
-      const url = `${API_BASE_URL}/jobs?my=true`;
-      console.log('API URL:', url);
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      console.log('📊 Response status:', response.status);
-      console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API Error Response:', errorText);
-
-        if (response.status === 401) {
-          throw new Error('Authentication failed. Please log in again.');
-        } else if (response.status === 403) {
-          throw new Error('Access denied. Admin permissions required.');
-        } else {
-          throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to load jobs'}`);
-        }
-      }
-
-      const data: ApiResponse = await response.json();
-      console.log('✅ Admin jobs loaded successfully:', data);
-
-      // Set jobs directly from response
-      const jobsArray = data.jobs || [];
-      console.log('📋 Jobs count:', jobsArray.length);
-
-      setJobs(jobsArray);
-    } catch (error) {
-      console.error('❌ Error loading admin jobs:', error);
-
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch') || error.message.includes('Network')) {
-          setError('Network error: Please check your internet connection and try again.');
-        } else if (error.message.includes('Authentication failed') || error.message.includes('401')) {
-          setError('Authentication failed. Please log in again.');
-        } else if (error.message.includes('Access denied') || error.message.includes('403')) {
-          setError('Access denied. Admin permissions required.');
-        } else if (error.message.includes('404')) {
-          setError('API endpoint not found. Please contact support.');
-        } else if (error.message.includes('500')) {
-          setError('Server error: The service is temporarily unavailable. Please try again later.');
-        } else {
-          setError(error.message);
-        }
-      } else {
-        setError('An unexpected error occurred. Please try again.');
-      }
-
-      setJobs([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getStatusBadge = (status: Job['status']) => {
-    const styles = {
-      published: 'bg-green-100 text-green-800',
-      draft: 'bg-yellow-100 text-yellow-800',
-      closed: 'bg-gray-100 text-gray-800',
-      archived: 'bg-red-100 text-red-800'
-    };
-
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[status] || 'bg-gray-100 text-gray-800'}`}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </span>
-    );
-  };
-
-  const filteredJobs = jobs.filter(job => {
-    if (statusFilter && job.status !== statusFilter) return false;
-    if (searchTerm && !job.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !job.description.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !job.department?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-    return true;
+  const [filters, setFilters] = useState<JobFilters>({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedJobs, setSelectedJobs] = useState<Set<string>>(new Set());
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    hasMore: false,
   });
 
-  const jobStats = {
-    total: jobs.length,
-    published: jobs.filter(job => job.status === 'published').length,
-    draft: jobs.filter(job => job.status === 'draft').length,
-    closed: jobs.filter(job => job.status === 'closed').length,
-    archived: jobs.filter(job => job.status === 'archived').length,
+  const loadJobs = useCallback(async (page = 1, newFilters = filters, resetList = false) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // For admin, show all jobs regardless of status
+      const response = await jobService.getJobs(newFilters, page, pagination.limit);
+
+      if (resetList || page === 1) {
+        setJobs(response.data || []);
+      } else {
+        setJobs(prev => [...prev, ...(response.data || [])]);
+      }
+
+      setPagination({
+        page,
+        limit: pagination.limit,
+        total: response.pagination?.totalCount || 0,
+        hasMore: response.pagination?.hasMore || false,
+      });
+
+      // Clear selected jobs when filtering
+      if (resetList) {
+        setSelectedJobs(new Set());
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load jobs');
+      console.error('Error loading jobs:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [filters, pagination.limit]);
+
+  useEffect(() => {
+    loadJobs(1, filters, true);
+  }, [filters]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newFilters = { ...filters, search: searchQuery.trim() };
+    setFilters(newFilters);
+  };
+
+  const handleFilterChange = (key: keyof JobFilters, value: string | undefined) => {
+    const newFilters = { ...filters, [key]: value || undefined };
+    setFilters(newFilters);
+  };
+
+  const clearFilters = () => {
+    setFilters({});
+    setSearchQuery('');
+  };
+
+  const toggleJobSelection = (jobId: string) => {
+    const newSelected = new Set(selectedJobs);
+    if (newSelected.has(jobId)) {
+      newSelected.delete(jobId);
+    } else {
+      newSelected.add(jobId);
+    }
+    setSelectedJobs(newSelected);
+  };
+
+  const selectAllJobs = () => {
+    if (selectedJobs.size === jobs.length) {
+      setSelectedJobs(new Set());
+    } else {
+      setSelectedJobs(new Set(jobs.map(job => job.id)));
+    }
+  };
+
+  const handleBulkAction = async (action: 'publish' | 'close' | 'archive' | 'delete') => {
+    if (selectedJobs.size === 0) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to ${action} ${selectedJobs.size} selected job(s)?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+
+      for (const jobId of Array.from(selectedJobs)) {
+        switch (action) {
+          case 'publish':
+            await jobService.publishJob(jobId);
+            break;
+          case 'close':
+            await jobService.closeJob(jobId);
+            break;
+          case 'archive':
+            await jobService.archiveJob(jobId);
+            break;
+          case 'delete':
+            await jobService.deleteJob(jobId);
+            break;
+        }
+      }
+
+      // Reload jobs and clear selection
+      setSelectedJobs(new Set());
+      await loadJobs(1, filters, true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to ${action} jobs`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    const statusConfig = JOB_STATUSES.find(s => s.value === status);
+    return statusConfig?.color || 'gray';
   };
 
   return (
-    <>
-      <Head>
-        <title>Jobs - Admin Dashboard</title>
-        <meta name="description" content="Manage job postings and requirements" />
-      </Head>
-
-      <ProtectedRoute allowedRoles={['admin']}>
-        <Layout user={user}>
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-center">
+    <Layout
+      title="Manage Jobs - Admin Dashboard"
+      description="Manage job postings and recruitment"
+      maxWidth="7xl"
+    >
+      <JobListErrorBoundary context="Admin Job Management">
+        <div className="py-8">
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Job Management</h1>
-                <p className="text-gray-600 mt-2">Manage your job postings and requirements</p>
+                <h1 className="text-3xl font-bold text-gray-900">Manage Jobs</h1>
+                <p className="mt-2 text-gray-600">
+                  Create, edit, and manage your job postings
+                </p>
               </div>
-              <div className="flex space-x-3">
-                <Button
-                  variant="secondary"
-                  onClick={loadAdminJobs}
-                  disabled={isLoading}
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Refresh
+              <div className="mt-4 sm:mt-0">
+                <Button as={Link} href="/admin/jobs/create" variant="primary">
+                  Post New Job
                 </Button>
-                <Link href="/admin/jobs/create">
-                  <Button variant="primary">
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Create Job
-                  </Button>
-                </Link>
               </div>
             </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-lg font-medium text-gray-900">{jobStats.total}</h3>
-                    <p className="text-sm text-gray-500">Total Jobs</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-lg font-medium text-gray-900">{jobStats.published}</h3>
-                    <p className="text-sm text-gray-500">Published</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-lg font-medium text-gray-900">{jobStats.draft}</h3>
-                    <p className="text-sm text-gray-500">Draft</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-lg font-medium text-gray-900">{jobStats.closed}</h3>
-                    <p className="text-sm text-gray-500">Closed</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-lg font-medium text-gray-900">{jobStats.archived}</h3>
-                    <p className="text-sm text-gray-500">Archived</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Error Display */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">
-                      Error Loading Jobs
-                    </h3>
-                    <div className="mt-2 text-sm text-red-700">
-                      <p>{error}</p>
-                    </div>
-                    <div className="mt-4 flex space-x-2">
-                      <button
-                        type="button"
-                        className="bg-red-100 px-2 py-1.5 rounded-md text-sm font-medium text-red-800 hover:bg-red-200"
-                        onClick={() => {
-                          setError(null);
-                          loadAdminJobs();
-                        }}
-                      >
-                        Try Again
-                      </button>
-                      {error.includes('Authentication') && (
-                        <Link href="/auth/login">
-                          <button
-                            type="button"
-                            className="bg-blue-100 px-2 py-1.5 rounded-md text-sm font-medium text-blue-800 hover:bg-blue-200"
-                          >
-                            Log In
-                          </button>
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Filters */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-                  <input
-                    type="text"
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Search jobs..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                  <select
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                  >
-                    <option value="">All Statuses</option>
-                    <option value="published">Published</option>
-                    <option value="draft">Draft</option>
-                    <option value="closed">Closed</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </div>
-                <div className="flex items-end">
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setSearchTerm('');
-                      setStatusFilter('');
-                    }}
-                  >
-                    Clear Filters
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Jobs List */}
-            {isLoading ? (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-4 text-gray-600">Loading jobs...</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {filteredJobs.length === 0 ? (
-                  <div className="text-center py-12">
-                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">No jobs found</h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                      {error ? 'There was an error loading jobs. Please try again.' :
-                       (searchTerm || statusFilter
-                        ? 'Try adjusting your search criteria.'
-                        : 'Get started by creating your first job opening.'
-                       )}
-                    </p>
-                    <div className="mt-6">
-                      <Link href="/admin/jobs/create">
-                        <Button variant="primary">Create Job</Button>
-                      </Link>
-                    </div>
-                  </div>
-                ) : (
-                  filteredJobs.map((job) => (
-                    <div key={job.jobId} className="bg-white rounded-lg shadow border border-gray-200 p-6">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h3 className="text-xl font-semibold text-gray-900">{job.title}</h3>
-                            {getStatusBadge(job.status)}
-                          </div>
-                          <p className="text-gray-600 mb-4 line-clamp-2">{job.description}</p>
-
-                          <div className="flex flex-wrap gap-4 mb-4 text-sm text-gray-500">
-                            {job.location && (
-                              <span className="flex items-center">
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                {job.location}
-                              </span>
-                            )}
-                            {(job.jobType || job.employmentType) && (
-                              <span className="flex items-center">
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                {(job.jobType || job.employmentType)?.replace(/[-_]/g, ' ')}
-                              </span>
-                            )}
-                            {job.department && (
-                              <span className="flex items-center">
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                </svg>
-                                {job.department}
-                              </span>
-                            )}
-                            {(job.applicationDeadline || job.deadline) && (
-                              <span className="flex items-center">
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                                Deadline: {new Date(job.applicationDeadline || job.deadline!).toLocaleDateString()}
-                              </span>
-                            )}
-                            <span className="flex items-center">
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                              Created: {new Date(job.createdAt).toLocaleDateString()}
-                            </span>
-                          </div>
-
-                          {job.requirements && job.requirements.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-3">
-                              {job.requirements.slice(0, 3).map((req, index) => (
-                                <span key={index} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-                                  {req}
-                                </span>
-                              ))}
-                              {job.requirements.length > 3 && (
-                                <span className="text-gray-500 text-xs">
-                                  +{job.requirements.length - 3} more
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex space-x-2 ml-6">
-                          <Link href={`/admin/jobs/${job.jobId}`}>
-                            <Button variant="secondary" size="sm">View</Button>
-                          </Link>
-                          <Link href={`/admin/jobs/${job.jobId}/edit`}>
-                            <Button variant="secondary" size="sm">Edit</Button>
-                          </Link>
-                          <Link href={`/admin/jobs/${job.jobId}/applications`}>
-                            <Button variant="primary" size="sm">Applications</Button>
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
           </div>
-        </Layout>
-      </ProtectedRoute>
-    </>
+
+          {/* Search and Filters */}
+          <Card className="mb-8">
+            <form onSubmit={handleSearch} className="mb-6">
+              <div className="flex gap-4">
+                <Input
+                  type="text"
+                  placeholder="Search jobs by title, department, or skills..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1"
+                  leftIcon={
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  }
+                />
+                <Button type="submit" variant="primary">
+                  Search
+                </Button>
+              </div>
+            </form>
+
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={filters.status || ''}
+                  onChange={(e) => handleFilterChange('status', e.target.value || undefined)}
+                  className="w-full rounded-md border-gray-300 text-sm"
+                >
+                  <option value="">All Statuses</option>
+                  {JOB_STATUSES.map(status => (
+                    <option key={status.value} value={status.value}>{status.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Job Type</label>
+                <select
+                  value={filters.type || ''}
+                  onChange={(e) => handleFilterChange('type', e.target.value || undefined)}
+                  className="w-full rounded-md border-gray-300 text-sm"
+                >
+                  <option value="">All Types</option>
+                  {JOB_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Work Style</label>
+                <select
+                  value={filters.remotePolicy || ''}
+                  onChange={(e) => handleFilterChange('remotePolicy', e.target.value || undefined)}
+                  className="w-full rounded-md border-gray-300 text-sm"
+                >
+                  <option value="">All Policies</option>
+                  {REMOTE_POLICIES.map(policy => (
+                    <option key={policy.value} value={policy.value}>{policy.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Experience</label>
+                <select
+                  value={filters.experienceLevel || ''}
+                  onChange={(e) => handleFilterChange('experienceLevel', e.target.value || undefined)}
+                  className="w-full rounded-md border-gray-300 text-sm"
+                >
+                  <option value="">All Levels</option>
+                  {EXPERIENCE_LEVELS.map(level => (
+                    <option key={level.value} value={level.value}>{level.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                <Button variant="outline" onClick={clearFilters} className="w-full">
+                  Clear Filters
+                </Button>
+              </div>
+            </div>
+          </Card>
+
+          {/* Bulk Actions */}
+          {selectedJobs.size > 0 && (
+            <Card className="mb-6 bg-blue-50 border-blue-200">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-blue-700">
+                  {selectedJobs.size} job{selectedJobs.size !== 1 ? 's' : ''} selected
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => handleBulkAction('publish')}>
+                    Publish
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleBulkAction('close')}>
+                    Close
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleBulkAction('archive')}>
+                    Archive
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={() => handleBulkAction('delete')}>
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Results */}
+          {loading && jobs.length === 0 ? (
+            <div className="flex justify-center py-12">
+              <LoadingSpinner size="lg" />
+            </div>
+          ) : error ? (
+            <Card variant="outlined" className="text-center py-12">
+              <div className="text-red-600 mb-4">
+                <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Jobs</h3>
+              <p className="text-gray-600 mb-4">{error}</p>
+              <Button variant="primary" onClick={() => loadJobs(1, filters, true)}>
+                Try Again
+              </Button>
+            </Card>
+          ) : jobs.length === 0 ? (
+            <Card variant="outlined" className="text-center py-12">
+              <div className="text-gray-400 mb-4">
+                <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2V6" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Jobs Found</h3>
+              <p className="text-gray-600 mb-4">
+                {Object.keys(filters).length > 0 || searchQuery
+                  ? 'Try adjusting your search or filters.'
+                  : 'Get started by creating your first job posting.'
+                }
+              </p>
+              <Button as={Link} href="/admin/jobs/create" variant="primary">
+                Create Job
+              </Button>
+            </Card>
+          ) : (
+            <>
+              {/* Jobs Table */}
+              <Card>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left">
+                          <input
+                            type="checkbox"
+                            checked={jobs.length > 0 && selectedJobs.size === jobs.length}
+                            onChange={selectAllJobs}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Job Title
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Applications
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Created
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {jobs.map((job) => (
+                        <tr key={job.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={selectedJobs.has(job.id)}
+                              onChange={() => toggleJobSelection(job.id)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <Link
+                                href={`/admin/jobs/${job.id}`}
+                                className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors"
+                              >
+                                {job.title}
+                              </Link>
+                              <div className="text-sm text-gray-500">
+                                {job.department} • {job.location}
+                              </div>
+                              <div className="flex gap-1 mt-1">
+                                <Badge variant="secondary" size="sm">
+                                  {job.type}
+                                </Badge>
+                                <Badge variant="info" size="sm">
+                                  {job.remotePolicy}
+                                </Badge>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Badge variant={getStatusColor(job.status) as any}>
+                              {JOB_STATUSES.find(s => s.value === job.status)?.label || job.status}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {job.applicationCount || 0}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {formatDate(job.createdAt || new Date().toISOString())}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex gap-2">
+                              <Button
+                                as={Link}
+                                href={`/admin/jobs/${job.id}/edit`}
+                                variant="outline"
+                                size="sm"
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                as={Link}
+                                href={`/admin/jobs/${job.id}/applications`}
+                                variant="outline"
+                                size="sm"
+                              >
+                                Applications
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              {/* Pagination */}
+              {pagination.hasMore && (
+                <div className="text-center mt-8">
+                  <Button
+                    variant="outline"
+                    onClick={() => loadJobs(pagination.page + 1, filters, false)}
+                    loading={loading}
+                    disabled={loading}
+                  >
+                    Load More Jobs
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </JobListErrorBoundary>
+    </Layout>
   );
 };
 
-export default NewAdminJobsPage;
+// Wrap the component with ProtectedRoute
+const AdminJobsPage: NextPage = () => {
+  return (
+    <ProtectedRoute
+      component={AdminJobsComponent}
+      requiredRole="admin"
+    />
+  );
+};
+
+export default AdminJobsPage;

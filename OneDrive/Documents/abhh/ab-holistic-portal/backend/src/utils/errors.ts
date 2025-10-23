@@ -110,14 +110,12 @@ export abstract class AppError extends Error {
    * Get sanitized error details for client response
    * Removes sensitive information in production
    */
-  toClientError(): Partial<ErrorDetails> {
+  toClientError(): { code: string; message: string; details?: Record<string, unknown> } {
     const isProduction = process.env.NODE_ENV === 'production';
 
     return {
       code: this.code,
       message: this.message,
-      timestamp: this.timestamp,
-      requestId: this.requestId,
       ...(isProduction ? {} : { details: this.details })
     };
   }
@@ -339,7 +337,8 @@ export class SystemError extends AppError {
     message: string = 'Internal system error',
     details?: Record<string, unknown>,
     requestId?: string,
-    userId?: string
+    userId?: string,
+    metadata?: Record<string, unknown>
   ) {
     super(
       message,
@@ -349,7 +348,8 @@ export class SystemError extends AppError {
       500,
       details,
       requestId,
-      userId
+      userId,
+      metadata
     );
   }
 }
@@ -368,7 +368,8 @@ export class ErrorHandler {
     error: unknown,
     requestId?: string,
     userId?: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    requestOrigin?: string
   ): APIGatewayProxyResult {
     let appError: AppError;
 
@@ -390,13 +391,13 @@ export class ErrorHandler {
     // Log the error with appropriate level
     this.logError(appError);
 
-    // Return formatted API response
+    // Return formatted API response with CORS headers
     return createResponse(appError.statusCode, {
       success: false,
       error: appError.toClientError(),
       timestamp: appError.timestamp,
       requestId: appError.requestId
-    });
+    }, {}, true, requestOrigin);
   }
 
   /**
@@ -547,7 +548,6 @@ export function withErrorHandling(requestId?: string, userId?: string) {
 
 // Export all error types for easy importing
 export {
-  AppError,
   ValidationError as ValidationErr,
   AuthenticationError as AuthErr,
   AuthorizationError as AuthzErr,

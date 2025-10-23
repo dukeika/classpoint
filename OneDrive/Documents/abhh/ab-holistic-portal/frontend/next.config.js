@@ -5,12 +5,13 @@ const nextConfig = {
   productionBrowserSourceMaps: false,
   optimizeFonts: true,
 
-  // Output configuration for deployment
-  output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
+  // Enable static export for CloudFront deployment
+  output: 'export',
+  trailingSlash: true,
 
-  // Images configuration for static export
+  // Disable server-side features that don't work with static export
   images: {
-    unoptimized: process.env.NODE_ENV === 'production',
+    unoptimized: true,
   },
 
   experimental: {
