@@ -5,19 +5,22 @@ applications:
       phases:
         preBuild:
           commands:
+            - echo "Installing dependencies in monorepo root..."
             - cd ../..
             - corepack enable
             - corepack prepare pnpm@latest --activate
-            - pnpm install
+            - pnpm install --frozen-lockfile
         build:
           commands:
+            - echo "Building Next.js app..."
             - cd apps/web
             - pnpm build
       artifacts:
-        baseDirectory: .next
+        baseDirectory: apps/web/.next
         files:
           - '**/*'
       cache:
         paths:
           - node_modules/**/*
-          - .next/cache/**/*
+          - apps/web/.next/cache/**/*
+          - apps/web/node_modules/**/*
