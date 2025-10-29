@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
+const path = require('path');
+
 const nextConfig = {
   output: 'standalone', // Enable standalone mode for monorepo/Amplify deployment
+  outputFileTracingRoot: path.join(__dirname, '../../'), // Set monorepo root for correct file tracing
   images: {
     remotePatterns: [
       {
