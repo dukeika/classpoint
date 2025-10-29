@@ -12,11 +12,15 @@ applications:
             - pnpm install --frozen-lockfile
         build:
           commands:
-            - echo "Building Next.js app..."
+            - echo "Building Next.js app in standalone mode..."
             - cd apps/web
             - pnpm build
+            - echo "Preparing standalone build for deployment..."
+            - cp -r .next/standalone ./amplify-deploy
+            - cp -r .next/static ./amplify-deploy/.next/static
+            - cp -r public ./amplify-deploy/public
       artifacts:
-        baseDirectory: .next
+        baseDirectory: amplify-deploy
         files:
           - '**/*'
       cache:

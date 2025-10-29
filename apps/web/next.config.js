@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone', // Enable standalone mode for monorepo/Amplify deployment
   images: {
     remotePatterns: [
       {
