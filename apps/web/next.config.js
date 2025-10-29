@@ -1,13 +1,6 @@
 /** @type {import('next').NextConfig} */
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const nextConfig = {
-  output: 'standalone', // Enable standalone mode for monorepo/Amplify deployment
-  outputFileTracingRoot: path.join(__dirname, '../../'), // Set monorepo root for correct file tracing
+  // AWS Amplify has built-in Next.js support - no need for standalone mode
   images: {
     remotePatterns: [
       {
