@@ -21,6 +21,7 @@ applications:
             - if [ -d ".next/standalone/apps/web" ]; then ls -la .next/standalone/apps/web/; fi
             - echo "Preparing standalone build for deployment..."
             - mkdir -p amplify-deploy
+            - mkdir -p amplify-deploy/.next
             - |
               # In monorepo, standalone creates apps/web structure
               if [ -d ".next/standalone/apps/web" ]; then
