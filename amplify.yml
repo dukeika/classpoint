@@ -16,11 +16,10 @@ applications:
             - cd apps/web
             - pnpm build
       artifacts:
-        baseDirectory: apps/web/.next
+        baseDirectory: .next
         files:
           - '**/*'
       cache:
         paths:
           - node_modules/**/*
-          - apps/web/.next/cache/**/*
-          - apps/web/node_modules/**/*
+          - .next/cache/**/*
