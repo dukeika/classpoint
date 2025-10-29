@@ -1,0 +1,7 @@
+
+> api@0.0.1 build C:\Users\akabo\OneDrive\Documents\classpoint\my-turborepo\apps\api
+> nest build
+
+Found 892 error(s).
+
+ ELIFECYCLE  Command failed with exit code 1.
