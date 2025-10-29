@@ -16,7 +16,8 @@ applications:
             - cd apps/web
             - pnpm build
             - echo "Preparing standalone build for deployment..."
-            - cp -r .next/standalone amplify-deploy
+            - mkdir -p amplify-deploy
+            - cp -r .next/standalone/. amplify-deploy/
             - cp -r .next/static amplify-deploy/.next/
             - cp -r public amplify-deploy/public
       artifacts:
