@@ -15,11 +15,26 @@ applications:
             - echo "Building Next.js app in standalone mode..."
             - cd apps/web
             - pnpm build
+            - echo "Inspecting standalone build structure..."
+            - ls -la .next/standalone/
+            - echo "Checking for monorepo structure..."
+            - if [ -d ".next/standalone/apps/web" ]; then ls -la .next/standalone/apps/web/; fi
             - echo "Preparing standalone build for deployment..."
             - mkdir -p amplify-deploy
-            - cp -r .next/standalone/. amplify-deploy/
-            - cp -r .next/static amplify-deploy/.next/
+            - |
+              # In monorepo, standalone creates apps/web structure
+              if [ -d ".next/standalone/apps/web" ]; then
+                cp -r .next/standalone/apps/web/. amplify-deploy/
+                cp -r .next/standalone/node_modules amplify-deploy/
+                cp -r .next/standalone/package.json amplify-deploy/
+              else
+                cp -r .next/standalone/. amplify-deploy/
+              fi
+            - cp -r .next/static amplify-deploy/.next/static
             - cp -r public amplify-deploy/public
+            - echo "Final deployment structure:"
+            - ls -la amplify-deploy/
+            - ls -la amplify-deploy/.next/
       artifacts:
         baseDirectory: amplify-deploy
         files:
