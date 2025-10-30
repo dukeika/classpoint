@@ -1,20 +1,21 @@
 # Multi-stage build for Next.js with Turborepo
 FROM node:20-alpine AS base
-
-# Install dependencies only when needed
-FROM base AS deps
 RUN apk add --no-cache libc6-compat
+
+# Install dependencies
+FROM base AS deps
 WORKDIR /app
 
 # Enable corepack for pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy package files from monorepo root and web app
+# Copy all package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/web/package.json ./apps/web/
-COPY packages ./packages
+COPY turbo.json ./
+COPY apps/web/package.json ./apps/web/package.json
+COPY packages/ui/package.json ./packages/ui/package.json
 
-# Install dependencies
+# Install all dependencies
 RUN pnpm install --frozen-lockfile
 
 # Build the application
@@ -24,37 +25,42 @@ WORKDIR /app
 # Enable corepack for pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy dependencies from deps stage
+# Copy installed dependencies
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps ./apps
 COPY --from=deps /app/packages ./packages
 
-# Copy application source
+# Copy source code
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/web ./apps/web
-COPY turbo.json ./
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/ui ./packages/ui
 
-# Build the web application
+# Set working directory and build
 WORKDIR /app/apps/web
+
+# Build Next.js app
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
-# Production image
-FROM base AS runner
+# Production image - use Node.js instead of Alpine for better compatibility
+FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
-# Copy built application
-COPY --from=builder /app/apps/web/public ./public
+# Copy Next.js build output
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
 USER nextjs
 
 EXPOSE 3000
 
-# Start the application
+# Start Next.js server
 CMD ["node", "apps/web/server.js"]
