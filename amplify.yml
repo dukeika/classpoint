@@ -12,14 +12,11 @@ applications:
             - pnpm install --frozen-lockfile
         build:
           commands:
-            - echo "Building Next.js application in standalone mode..."
+            - echo "Building Next.js application..."
             - cd apps/web
             - pnpm build
-            - echo "Copying static files to standalone build..."
-            - cp -r public .next/standalone/apps/web/
-            - cp -r .next/static .next/standalone/apps/web/.next/
       artifacts:
-        baseDirectory: .next/standalone
+        baseDirectory: .next
         files:
           - '**/*'
       cache:
