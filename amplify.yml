@@ -12,11 +12,11 @@ applications:
             - pnpm install --frozen-lockfile
         build:
           commands:
-            - echo "Building Next.js application..."
+            - echo "Building Next.js application (static export)..."
             - cd apps/web
             - pnpm build
       artifacts:
-        baseDirectory: .next
+        baseDirectory: out
         files:
           - '**/*'
       cache:
