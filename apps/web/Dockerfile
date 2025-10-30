@@ -69,5 +69,5 @@ USER nextjs
 EXPOSE 3000
 
 # Start Next.js server using standalone mode
-# Next.js is installed at /app/node_modules, so use that path
-CMD ["node", "/app/node_modules/.bin/next", "start", "-p", "3000", "--hostname", "0.0.0.0"]
+# The standalone build creates a server.js file at apps/web/server.js
+CMD ["node", "apps/web/server.js"]
