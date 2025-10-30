@@ -46,6 +46,9 @@ WORKDIR /app/apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
+# Copy server.js to the standalone output
+RUN cp server.js .next/standalone/apps/web/server.js
+
 # Production image - use Node.js instead of Alpine for better compatibility
 FROM node:20-slim AS runner
 WORKDIR /app
