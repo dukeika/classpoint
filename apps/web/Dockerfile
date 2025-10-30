@@ -64,10 +64,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
+# Copy the custom server for standalone mode in monorepo
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/server.cjs ./apps/web/server.cjs
+
 USER nextjs
 
 EXPOSE 3000
 
-# Start Next.js server using standalone mode
-# The standalone build creates a server.js file at apps/web/server.js
-CMD ["node", "apps/web/server.js"]
+# Start Next.js server using custom server for monorepo standalone mode
+CMD ["node", "apps/web/server.cjs"]
