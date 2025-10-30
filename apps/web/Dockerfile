@@ -46,8 +46,8 @@ WORKDIR /app/apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
-# Copy server.js to the standalone output
-RUN cp server.js .next/standalone/apps/web/server.js
+# Copy server.cjs to the standalone output
+RUN cp server.cjs .next/standalone/apps/web/server.cjs
 
 # Production image - use Node.js instead of Alpine for better compatibility
 FROM node:20-slim AS runner
@@ -70,4 +70,4 @@ USER nextjs
 EXPOSE 3000
 
 # Start Next.js server
-CMD ["node", "apps/web/server.js"]
+CMD ["node", "apps/web/server.cjs"]
