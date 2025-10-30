@@ -15,8 +15,14 @@ applications:
             - echo "Building Next.js application..."
             - cd apps/web
             - pnpm build
+            - echo "Copying required files to .amplify-hosting..."
+            - cp -r .next .amplify-hosting/
+            - cp -r public .amplify-hosting/ || true
+            - cp package.json .amplify-hosting/
+            - cp next.config.js .amplify-hosting/
+            - cp middleware.ts .amplify-hosting/ || true
       artifacts:
-        baseDirectory: .
+        baseDirectory: .amplify-hosting
         files:
           - '**/*'
       cache:
