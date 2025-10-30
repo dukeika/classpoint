@@ -46,8 +46,7 @@ WORKDIR /app/apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
-# Copy server.cjs to the standalone output
-RUN cp server.cjs .next/standalone/apps/web/server.cjs
+# No custom server needed - Next.js standalone handles this
 
 # Production image - use Node.js instead of Alpine for better compatibility
 FROM node:20-slim AS runner
@@ -69,5 +68,7 @@ USER nextjs
 
 EXPOSE 3000
 
-# Start Next.js server
-CMD ["node", "apps/web/server.cjs"]
+# Start Next.js server using standalone mode
+# Set working directory to the standalone app
+WORKDIR /app/apps/web
+CMD ["node_modules/.bin/next", "start"]
