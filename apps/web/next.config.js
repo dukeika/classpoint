@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Experimental features for Amplify Web Compute
+  experimental: {
+    outputFileTracingRoot: undefined,
+  },
   images: {
     remotePatterns: [
       {
