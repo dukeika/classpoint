@@ -14,10 +14,18 @@ export function middleware(request: NextRequest) {
   // - app.classpoint.com (application portal)
   // - schoolname.classpoint.com (school public site)
   // - localhost:3000 (development)
+  // - *.amplifyapp.com (AWS Amplify preview URLs)
+
+  // Skip middleware for Amplify preview URLs
+  if (hostname.includes('amplifyapp.com')) {
+    return NextResponse.next()
+  }
+
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'classpoint.com'
 
   const currentHost =
     process.env.NODE_ENV === 'production'
-      ? hostname.replace(`.${process.env.NEXT_PUBLIC_ROOT_DOMAIN}`, '')
+      ? hostname.replace(`.${rootDomain}`, '')
       : hostname.replace(`.localhost:3000`, '')
 
   // Remove port if present
@@ -25,9 +33,10 @@ export function middleware(request: NextRequest) {
 
   // Main domain (no subdomain)
   if (
-    subdomain === process.env.NEXT_PUBLIC_ROOT_DOMAIN ||
+    subdomain === rootDomain ||
     subdomain === 'localhost' ||
-    subdomain === 'classpoint.com'
+    subdomain === 'classpoint.com' ||
+    subdomain === hostname // No subdomain detected
   ) {
     // Main marketing site - allow through
     return NextResponse.next()
