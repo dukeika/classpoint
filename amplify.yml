@@ -16,7 +16,7 @@ applications:
             - cd apps/web
             - pnpm build
       artifacts:
-        baseDirectory: /
+        baseDirectory: .
         files:
           - '**/*'
       cache:
