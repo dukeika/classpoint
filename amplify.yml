@@ -12,18 +12,14 @@ applications:
             - pnpm install --frozen-lockfile
         build:
           commands:
-            - echo "Building Next.js application..."
+            - echo "Building Next.js application in standalone mode..."
             - cd apps/web
             - pnpm build
-            - echo "Copying required files to .amplify-hosting..."
-            - cp -r .next .amplify-hosting/
-            - cp -r node_modules .amplify-hosting/
-            - cp -r public .amplify-hosting/ || true
-            - cp package.json .amplify-hosting/
-            - cp next.config.js .amplify-hosting/
-            - cp middleware.ts .amplify-hosting/ || true
+            - echo "Copying static files to standalone build..."
+            - cp -r public .next/standalone/apps/web/
+            - cp -r .next/static .next/standalone/apps/web/.next/
       artifacts:
-        baseDirectory: .amplify-hosting
+        baseDirectory: .next/standalone
         files:
           - '**/*'
       cache:
