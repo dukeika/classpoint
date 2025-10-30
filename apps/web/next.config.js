@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // AWS Amplify has built-in Next.js support - no need for standalone mode
   images: {
     remotePatterns: [
       {

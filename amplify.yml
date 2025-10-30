@@ -12,11 +12,11 @@ applications:
             - pnpm install --frozen-lockfile
         build:
           commands:
-            - echo "Building Next.js application..."
+            - echo "Building Next.js application with Amplify adapter..."
             - cd apps/web
             - pnpm build
       artifacts:
-        baseDirectory: .
+        baseDirectory: .amplify-hosting
         files:
           - '**/*'
       cache:
