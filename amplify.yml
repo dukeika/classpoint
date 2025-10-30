@@ -17,6 +17,7 @@ applications:
             - pnpm build
             - echo "Copying required files to .amplify-hosting..."
             - cp -r .next .amplify-hosting/
+            - cp -r node_modules .amplify-hosting/
             - cp -r public .amplify-hosting/ || true
             - cp package.json .amplify-hosting/
             - cp next.config.js .amplify-hosting/
