@@ -15,10 +15,8 @@ applications:
             - echo "Building Next.js application..."
             - cd apps/web
             - pnpm build
-      artifacts:
-        baseDirectory: .next
-        files:
-          - '**/*'
+      # For Next.js SSR on Amplify Web Compute, don't specify artifacts
+      # Amplify will automatically deploy the entire app structure
       cache:
         paths:
           - node_modules/**/*
