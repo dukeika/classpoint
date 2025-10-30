@@ -14,6 +14,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY turbo.json ./
 COPY apps/web/package.json ./apps/web/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
+COPY packages/typescript-config/package.json ./packages/typescript-config/package.json
+COPY packages/eslint-config/package.json ./packages/eslint-config/package.json
 
 # Install all dependencies
 RUN pnpm install --frozen-lockfile
@@ -34,6 +36,8 @@ COPY --from=deps /app/packages ./packages
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/web ./apps/web
 COPY packages/ui ./packages/ui
+COPY packages/typescript-config ./packages/typescript-config
+COPY packages/eslint-config ./packages/eslint-config
 
 # Set working directory and build
 WORKDIR /app/apps/web
