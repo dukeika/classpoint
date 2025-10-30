@@ -56,20 +56,18 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 
+# Enable corepack for pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy Next.js build output
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
-
-# Copy the custom server for standalone mode in monorepo
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/server.cjs ./apps/web/server.cjs
+# Copy everything from builder (full build, not standalone)
+COPY --from=builder --chown=nextjs:nodejs /app ./
 
 USER nextjs
 
 EXPOSE 3000
 
-# Start Next.js server using custom server for monorepo standalone mode
-CMD ["node", "apps/web/server.cjs"]
+# Use pnpm to start the Next.js app
+CMD ["pnpm", "--filter", "web", "start"]
