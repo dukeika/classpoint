@@ -55,6 +55,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+ENV HOME=/tmp
 
 # Enable corepack for pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
