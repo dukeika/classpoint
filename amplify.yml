@@ -15,6 +15,9 @@ applications:
             - echo "Building Next.js application..."
             - cd apps/web
             - pnpm build
+      artifacts:
+        files:
+          - '**/*'
       cache:
         paths:
           - node_modules/**/*
