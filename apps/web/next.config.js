@@ -6,8 +6,8 @@ const __dirname = path.dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable static export for Amplify hosting
-  output: 'export',
+  // Enable standalone output for Docker deployment
+  output: 'standalone',
   // Skip type checking during build (type errors exist in backend)
   typescript: {
     ignoreBuildErrors: true,

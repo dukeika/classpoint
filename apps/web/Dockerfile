@@ -48,27 +48,25 @@ RUN pnpm build
 
 # No custom server needed - Next.js standalone handles this
 
-# Production image - use Node.js instead of Alpine for better compatibility
+# Production image - use standalone output (no pnpm needed at runtime)
 FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
-ENV HOME=/tmp
-
-# Enable corepack for pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy everything from builder (full build, not standalone)
-COPY --from=builder --chown=nextjs:nodejs /app ./
+# Copy standalone output from builder
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
 USER nextjs
 
 EXPOSE 3000
 
-# Use pnpm to start the Next.js app
-CMD ["pnpm", "--filter", "web", "start"]
+# Use Node directly to run the standalone server
+CMD ["node", "apps/web/server.js"]
