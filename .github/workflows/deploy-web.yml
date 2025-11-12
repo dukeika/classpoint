@@ -2,21 +2,18 @@ name: Deploy Web App to ECR
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
     paths:
       - 'apps/web/**'
       - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'turbo.json'
       - '.github/workflows/deploy-web.yml'
-  workflow_dispatch:
-
-env:
-  AWS_REGION: eu-west-2
-  ECR_REPOSITORY: classpoint-web
+  workflow_dispatch: # Allow manual trigger
 
 jobs:
-  build-and-push:
-    name: Build and Push Docker Image
+  deploy:
+    name: Build and Deploy to ECR
     runs-on: ubuntu-latest
 
     steps:
@@ -28,24 +25,31 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: eu-west-2
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image to Amazon ECR
-        id: build-image
+      - name: Build, tag, and push Docker image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: classpoint-web
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          cd apps/web
-          docker build -f Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ../..
+          echo "Building Docker image..."
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f apps/web/Dockerfile .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+          echo "Pushing Docker image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Output image URI
+          echo "✅ Image pushed successfully!"
+          echo "Image URI: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+      - name: Wait for App Runner deployment
         run: |
-          echo "Image pushed to: ${{ steps.build-image.outputs.image }}"
+          echo "App Runner will automatically deploy the new image."
+          echo "Monitor deployment at: https://eu-west-2.console.aws.amazon.com/apprunner/home?region=eu-west-2#/services"
+          echo "Service URL: https://g2genquvfp.eu-west-2.awsapprunner.com"
