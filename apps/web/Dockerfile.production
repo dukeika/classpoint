@@ -1,0 +1,96 @@
+# Optimized Production Dockerfile for Next.js in Turborepo
+# This avoids standalone mode and uses regular Next.js server
+
+FROM node:20-alpine AS base
+RUN apk add --no-cache libc6-compat curl
+
+# ===== DEPENDENCIES STAGE =====
+FROM base AS deps
+WORKDIR /app
+
+# Enable pnpm
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+
+# Copy package files for dependency resolution
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY turbo.json ./
+
+# Copy all package.json files
+COPY apps/web/package.json ./apps/web/
+COPY packages/ui/package.json ./packages/ui/
+COPY packages/typescript-config/package.json ./packages/typescript-config/
+COPY packages/eslint-config/package.json ./packages/eslint-config/
+
+# Install dependencies
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --prefer-offline
+
+# ===== BUILD STAGE =====
+FROM base AS builder
+WORKDIR /app
+
+# Enable pnpm
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml /app/turbo.json ./
+
+# Copy all source code
+COPY apps/web ./apps/web
+COPY packages ./packages
+
+# Build the application
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+# Build using pnpm filter to build just the web app with its dependencies
+RUN pnpm --filter web build
+
+# Verify build output
+RUN echo "=== Build Verification ===" && \
+    ls -lah apps/web/.next && \
+    echo "=== Static files ===" && \
+    ls -lah apps/web/.next/static && \
+    echo "=== Server files ===" && \
+    ls -lah apps/web/.next/server
+
+# ===== PRODUCTION RUNTIME STAGE =====
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs && \
+    mkdir -p /app && \
+    chown -R nextjs:nodejs /app
+
+# Copy only necessary files for production
+COPY --from=builder --chown=nextjs:nodejs /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml /app/turbo.json ./
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web ./apps/web
+COPY --from=builder --chown=nextjs:nodejs /app/packages ./packages
+
+# Create cache directory with proper permissions
+RUN mkdir -p /app/apps/web/.next/cache && \
+    chown -R nextjs:nodejs /app/apps/web/.next
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+# Switch to non-root user
+USER nextjs
+
+EXPOSE 3000
+
+# Start the Next.js server
+CMD ["pnpm", "--filter", "web", "start"]
