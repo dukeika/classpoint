@@ -2,7 +2,7 @@ name: Deploy Web App to ECR
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths:
       - 'my-turborepo/apps/web/**'
       - 'my-turborepo/packages/**'
@@ -38,8 +38,8 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           cd my-turborepo
-          echo "Building Docker image..."
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f apps/web/Dockerfile .
+          echo "Building Docker image with production Dockerfile..."
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f apps/web/Dockerfile.production .
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
           echo "Pushing Docker image to ECR..."
