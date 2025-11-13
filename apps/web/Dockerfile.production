@@ -1,50 +1,37 @@
-# Simple, reliable Dockerfile for Turborepo Next.js app
-FROM node:20-alpine AS base
+# Production Dockerfile for Next.js in Turborepo
+# Based on official Turborepo examples
+FROM node:20-alpine AS alpine
 RUN apk add --no-cache libc6-compat
+RUN apk update
 WORKDIR /app
-
-# Install pnpm
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
-# Install dependencies
-FROM base AS deps
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY turbo.json ./
-COPY apps/web/package.json ./apps/web/
-COPY packages/ui/package.json ./packages/ui/
-COPY packages/typescript-config/package.json ./packages/typescript-config/
-COPY packages/eslint-config/package.json ./packages/eslint-config/
-
+# Install dependencies only when needed
+FROM alpine AS deps
+COPY . .
 RUN pnpm install --frozen-lockfile
 
-# Build the application
-FROM base AS builder
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-
+# Build the app
+FROM alpine AS builder
+COPY --from=deps /app ./
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
+RUN pnpm turbo build --filter=web
 
-# Build using Turbo (handles dependencies automatically)
-RUN pnpm run build --filter=web...
-
-# Production runtime
-FROM base AS runner
-
+# Production image, copy all the files and run next
+FROM alpine AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
-ENV HOSTNAME=0.0.0.0
+ENV HOSTNAME="0.0.0.0"
 
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
 
-# Copy everything needed for production
+# Copy built application
 COPY --from=builder --chown=nextjs:nodejs /app ./
 
 USER nextjs
 EXPOSE 3000
 
-# Start Next.js (from the apps/web directory context)
 WORKDIR /app
 CMD ["pnpm", "--filter", "web", "start"]
