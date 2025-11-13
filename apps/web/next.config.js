@@ -6,8 +6,7 @@ const __dirname = path.dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable standalone output for Docker deployment
-  output: 'standalone',
+  // Removed standalone mode - using regular Next.js server
   // Skip type checking during build (type errors exist in backend)
   typescript: {
     ignoreBuildErrors: true,

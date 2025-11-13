@@ -1,4 +1,5 @@
 # Multi-stage build for Next.js with Turborepo
+# Using regular Next.js server (not standalone mode)
 FROM node:20-alpine AS base
 RUN apk add --no-cache libc6-compat
 
@@ -44,14 +45,14 @@ WORKDIR /app/apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
-# Debug: List the standalone output structure
-RUN echo "=== Standalone build output ===" && \
+# Debug: Show build output
+RUN echo "=== Build output ===" && \
     ls -la .next/ && \
-    echo "=== Contents of standalone directory ===" && \
-    ls -la .next/standalone/ || echo "No standalone directory found"
+    echo "=== .next/server ===" && \
+    ls -la .next/server/ || echo "No server directory"
 
-# Production image - use standalone output (no pnpm needed at runtime)
-FROM node:20-slim AS runner
+# Production image - use regular Next.js server with pnpm
+FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -59,25 +60,29 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+RUN apk add --no-cache libc6-compat
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy standalone output from builder
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
+# Copy the entire built application and dependencies
+COPY --from=builder --chown=nextjs:nodejs /app ./
 
-# Debug: Show the final structure
-RUN echo "=== Final container structure ===" && \
-    ls -la / && \
-    echo "=== /app contents ===" && \
+# Debug: Show what's in the container
+RUN echo "=== Container structure ===" && \
     ls -la /app && \
-    echo "=== Looking for server.js ===" && \
-    find /app -name "server.js" -type f 2>/dev/null || echo "server.js not found"
+    echo "=== apps/web structure ===" && \
+    ls -la /app/apps/web && \
+    echo "=== .next directory ===" && \
+    ls -la /app/apps/web/.next
 
 USER nextjs
 
 EXPOSE 3000
 
-# Use Node directly to run the standalone server
-CMD ["node", "apps/web/server.js"]
+# Use Next.js built-in server
+WORKDIR /app/apps/web
+CMD ["pnpm", "start"]
