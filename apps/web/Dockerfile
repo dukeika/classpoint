@@ -83,6 +83,7 @@ USER nextjs
 
 EXPOSE 3000
 
-# Use Next.js built-in server
-WORKDIR /app/apps/web
-CMD ["pnpm", "start"]
+# Use Next.js built-in server with workspace context
+# Run from workspace root so pnpm can resolve workspace dependencies
+WORKDIR /app
+CMD ["pnpm", "--filter", "web", "start"]
