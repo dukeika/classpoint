@@ -52,4 +52,4 @@ jobs:
         run: |
           echo "App Runner will automatically deploy the new image."
           echo "Monitor deployment at: https://eu-west-2.console.aws.amazon.com/apprunner/home?region=eu-west-2#/services"
-          echo "Service URL: https://g2genquvfp.eu-west-2.awsapprunner.com"
+          echo "Service URL: https://mjz3sz22ir.eu-west-2.awsapprunner.com"
