@@ -39,14 +39,16 @@ COPY packages/ui ./packages/ui
 COPY packages/typescript-config ./packages/typescript-config
 COPY packages/eslint-config ./packages/eslint-config
 
-# Set working directory and build
+# Build Next.js app from the web directory
 WORKDIR /app/apps/web
-
-# Build Next.js app
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
-# No custom server needed - Next.js standalone handles this
+# Debug: List the standalone output structure
+RUN echo "=== Standalone build output ===" && \
+    ls -la .next/ && \
+    echo "=== Contents of standalone directory ===" && \
+    ls -la .next/standalone/ || echo "No standalone directory found"
 
 # Production image - use standalone output (no pnpm needed at runtime)
 FROM node:20-slim AS runner
@@ -55,6 +57,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
@@ -63,6 +66,14 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
+
+# Debug: Show the final structure
+RUN echo "=== Final container structure ===" && \
+    ls -la / && \
+    echo "=== /app contents ===" && \
+    ls -la /app && \
+    echo "=== Looking for server.js ===" && \
+    find /app -name "server.js" -type f 2>/dev/null || echo "server.js not found"
 
 USER nextjs
 
