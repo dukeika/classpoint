@@ -6,7 +6,8 @@ const __dirname = path.dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Removed standalone mode - using regular Next.js server
+  // Explicitly disable standalone mode to prevent symlink issues
+  output: undefined,
   // Skip type checking during build (type errors exist in backend)
   typescript: {
     ignoreBuildErrors: true,
