@@ -2,7 +2,7 @@ name: Deploy Web App to ECR
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
       - 'my-turborepo/apps/web/**'
       - 'my-turborepo/packages/**'
