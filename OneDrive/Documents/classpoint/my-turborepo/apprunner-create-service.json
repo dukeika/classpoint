@@ -1,0 +1,36 @@
+{
+  "ServiceName": "classpoint-web",
+  "SourceConfiguration": {
+    "ImageRepository": {
+      "ImageIdentifier": "624914081304.dkr.ecr.eu-west-2.amazonaws.com/classpoint-web:latest",
+      "ImageConfiguration": {
+        "Port": "3000",
+        "RuntimeEnvironmentVariables": {
+          "NODE_ENV": "production",
+          "NEXT_TELEMETRY_DISABLED": "1",
+          "NEXT_PUBLIC_API_URL": "https://api.classpoint.ng",
+          "NEXT_PUBLIC_COGNITO_USER_POOL_ID": "af-south-1_kqGYNh2kd",
+          "NEXT_PUBLIC_COGNITO_CLIENT_ID": "2ue3pomcpsjvargqq0ir3frmm0",
+          "NEXT_PUBLIC_AWS_REGION": "af-south-1"
+        }
+      },
+      "ImageRepositoryType": "ECR"
+    },
+    "AutoDeploymentsEnabled": true,
+    "AuthenticationConfiguration": {
+      "AccessRoleArn": "arn:aws:iam::624914081304:role/AppRunnerECRAccessRole"
+    }
+  },
+  "InstanceConfiguration": {
+    "Cpu": "1024",
+    "Memory": "2048"
+  },
+  "HealthCheckConfiguration": {
+    "Protocol": "HTTP",
+    "Path": "/api/health",
+    "Interval": 10,
+    "Timeout": 5,
+    "HealthyThreshold": 1,
+    "UnhealthyThreshold": 5
+  }
+}

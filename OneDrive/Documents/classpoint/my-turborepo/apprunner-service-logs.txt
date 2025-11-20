@@ -1,0 +1,14 @@
+1761829985311	[AppRunner] Starting to deploy your application image.
+1761829985587	[AppRunner] Deployment with ID : b270d22743994ea0af32217fa9293d06 started. Triggering event : SERVICE_CREATE
+1761829985749	[AppRunner] Deployment Artifact: [Repo Type: ECR], [Image URL: 624914081304.dkr.ecr.eu-west-2.amazonaws.com/classpoint-web], [Image Tag: latest]
+1761830009319	[AppRunner] Creating pipeline for automatic deployments.
+1761830009505	[AppRunner] Successfully created pipeline for automatic deployments.
+1761830022886	[AppRunner] Starting to pull your application image.
+1761830022915	[AppRunner] Pulling image 624914081304.dkr.ecr.eu-west-2.amazonaws.com/classpoint-web from ECR repository.
+1761830024176	[AppRunner] Successfully pulled your application image from ECR.
+1761830024198	[AppRunner] Successfully pulled your application image from ECR.
+1761830035391	[AppRunner] Provisioning instances and deploying image for publicly accessible service.
+1761830046168	[AppRunner] Performing health check on protocol `TCP` [Port: '3000'].
+1761830415226	[AppRunner] Health check failed on protocol `TCP` [Port: '3000']. Check your configured port number. For more information, see the application logs.
+1761830429741	[AppRunner] Failed to deploy your application image.
+1761830429819	[AppRunner] Deployment with ID : b270d22743994ea0af32217fa9293d06 failed. Failure reason : Health check failed.

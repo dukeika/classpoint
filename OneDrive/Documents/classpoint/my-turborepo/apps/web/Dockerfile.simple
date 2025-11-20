@@ -1,0 +1,99 @@
+# Simplified Next.js Dockerfile - No Turborepo complexity
+# This builds ONLY the web app with all dependencies flattened
+FROM node:20-alpine AS base
+RUN apk add --no-cache libc6-compat curl
+
+# Install dependencies
+FROM base AS deps
+WORKDIR /app
+
+# Enable pnpm
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+
+# Copy package files
+COPY apps/web/package.json apps/web/pnpm-lock.yaml* ./
+# Copy workspace package files that are dependencies
+COPY packages/ui/package.json ./packages/ui/package.json
+COPY packages/typescript-config/package.json ./packages/typescript-config/package.json
+COPY packages/eslint-config/package.json ./packages/eslint-config/package.json
+COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+
+# Install ALL dependencies (including dev for build)
+RUN echo "=== Installing dependencies ===" && \
+    pnpm install --frozen-lockfile && \
+    echo "=== Dependencies installed ===" && \
+    ls -la node_modules | head -20
+
+# Build stage
+FROM base AS builder
+WORKDIR /app
+
+# Enable pnpm
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+
+# Copy dependencies
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages ./packages
+
+# Copy source code
+COPY apps/web ./
+
+# Build Next.js
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN echo "=== Building Next.js ===" && \
+    pnpm build && \
+    echo "=== Build complete ===" && \
+    echo "=== Checking build output ===" && \
+    ls -la .next && \
+    echo "=== Checking .next/server ===" && \
+    ls -la .next/server | head -10
+
+# Production stage
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+# Enable pnpm
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+
+# Create user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy production files
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/next.config.js ./
+
+# Copy workspace packages if referenced
+COPY --from=builder --chown=nextjs:nodejs /app/packages ./packages
+
+# Debug: Show structure
+RUN echo "=== Final app structure ===" && \
+    ls -la && \
+    echo "=== node_modules check ===" && \
+    ls -la node_modules | head -10 && \
+    echo "=== .next check ===" && \
+    ls -la .next
+
+# Test that Next.js can start (run as root, just for test)
+RUN echo "=== Testing Next.js startup ===" && \
+    timeout 10 pnpm start & \
+    SERVER_PID=$! && \
+    sleep 5 && \
+    curl -f http://localhost:3000 -I && \
+    echo "✅ Server responded successfully!" || \
+    echo "⚠️ Server did not respond"
+
+USER nextjs
+
+EXPOSE 3000
+
+# Start with verbose logging
+CMD ["sh", "-c", "echo '=== Starting Next.js Server ===' && echo 'Node version:' && node -v && echo 'Environment:' && env | grep -E 'NODE_ENV|PORT|HOSTNAME' && echo 'Starting pnpm start...' && pnpm start"]

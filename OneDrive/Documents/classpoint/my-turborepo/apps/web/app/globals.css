@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ClassPoint Brand Colors - Light Mode */
+    --background: 0 0% 100%; /* White */
+    --foreground: 222.2 47.4% 11.2%; /* Dark slate */
+
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 222.2 47.4% 11.2%; /* Dark slate */
+
+    --popover: 0 0% 100%; /* White */
+    --popover-foreground: 222.2 47.4% 11.2%; /* Dark slate */
+
+    /* Primary: ClassPoint Blue (Sky-500) */
+    --primary: 199.02 89.13% 48.04%; /* #0ea5e9 */
+    --primary-foreground: 0 0% 100%; /* White text on blue */
+
+    /* Secondary: Slate */
+    --secondary: 210 40% 96.1%; /* Light slate */
+    --secondary-foreground: 222.2 47.4% 11.2%; /* Dark slate */
+
+    --muted: 210 40% 96.1%; /* Light slate */
+    --muted-foreground: 215.4 16.3% 46.9%; /* Muted slate */
+
+    --accent: 199.02 89.13% 48.04%; /* ClassPoint Blue accent */
+    --accent-foreground: 0 0% 100%; /* White text */
+
+    /* Destructive: Error Red */
+    --destructive: 0 84.2% 60.2%; /* Red */
+    --destructive-foreground: 0 0% 100%; /* White text */
+
+    --border: 214.3 31.8% 91.4%; /* Light border */
+    --input: 214.3 31.8% 91.4%; /* Light input border */
+    --ring: 199.02 89.13% 48.04%; /* ClassPoint Blue focus ring */
+
+    --radius: 0.5rem; /* 8px */
+  }
+
+  .dark {
+    /* ClassPoint Brand Colors - Dark Mode */
+    --background: 222.2 84% 4.9%; /* Very dark slate */
+    --foreground: 210 40% 98%; /* Almost white */
+
+    --card: 222.2 84% 4.9%; /* Very dark slate */
+    --card-foreground: 210 40% 98%; /* Almost white */
+
+    --popover: 222.2 84% 4.9%; /* Very dark slate */
+    --popover-foreground: 210 40% 98%; /* Almost white */
+
+    /* Primary: Brighter blue for dark mode */
+    --primary: 199.02 89.13% 58%; /* Lighter blue for contrast */
+    --primary-foreground: 222.2 47.4% 11.2%; /* Dark text on blue */
+
+    /* Secondary: Dark slate */
+    --secondary: 217.2 32.6% 17.5%; /* Dark slate */
+    --secondary-foreground: 210 40% 98%; /* Almost white */
+
+    --muted: 217.2 32.6% 17.5%; /* Dark slate */
+    --muted-foreground: 215 20.2% 65.1%; /* Muted light */
+
+    --accent: 199.02 89.13% 58%; /* Lighter blue accent */
+    --accent-foreground: 222.2 47.4% 11.2%; /* Dark text */
+
+    /* Destructive: Darker red for dark mode */
+    --destructive: 0 62.8% 50%; /* Adjusted red */
+    --destructive-foreground: 210 40% 98%; /* Almost white */
+
+    --border: 217.2 32.6% 17.5%; /* Dark border */
+    --input: 217.2 32.6% 17.5%; /* Dark input border */
+    --ring: 199.02 89.13% 58%; /* Lighter blue focus ring */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Custom scrollbar styles */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-secondary;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground rounded-full;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary;
+  }
+}

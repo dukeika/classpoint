@@ -1,0 +1,141 @@
+
+> api@0.0.1 build C:\Users\akabo\OneDrive\Documents\classpoint\my-turborepo\apps\api
+> nest build
+
+[96msrc/analytics/analytics.service.ts[0m:[93m59[0m:[93m8[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+[7m59[0m       }]);
+[7m  [0m [91m       ~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m350[0m:[93m46[0m - [91merror[0m[90m TS2339: [0mProperty 'user' does not exist on type '{} & { email: string | null; phone: string | null; address: string | null; id: string; createdAt: Date; updatedAt: Date; tenantId: string; firstName: string; lastName: string; ... 6 more ...; enrolledAt: Date | null; }'.
+
+[7m350[0m           studentName: `${attendance.student.user.firstName} ${attendance.student.user.lastName}`,
+[7m   [0m [91m                                             ~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m350[0m:[93m83[0m - [91merror[0m[90m TS2339: [0mProperty 'user' does not exist on type '{} & { email: string | null; phone: string | null; address: string | null; id: string; createdAt: Date; updatedAt: Date; tenantId: string; firstName: string; lastName: string; ... 6 more ...; enrolledAt: Date | null; }'.
+
+[7m350[0m           studentName: `${attendance.student.user.firstName} ${attendance.student.user.lastName}`,
+[7m   [0m [91m                                                                                  ~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m447[0m:[93m45[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'tenantId' does not exist in type 'GradeWhereInput'.
+
+[7m447[0m     const where: Prisma.GradeWhereInput = { tenantId };
+[7m   [0m [91m                                            ~~~~~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m463[0m:[93m9[0m - [91merror[0m[90m TS2322: [0mType 'string' is not assignable to type 'undefined'.
+
+[7m463[0m         subjectId: query.subjectId};
+[7m   [0m [91m        ~~~~~~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m469[0m:[93m9[0m - [91merror[0m[90m TS2322: [0mType 'AssessmentType' is not assignable to type 'undefined'.
+  Type '"CA1"' is not assignable to type 'undefined'.
+
+[7m469[0m         type: query.assessmentType};
+[7m   [0m [91m        ~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m533[0m:[93m7[0m - [91merror[0m[90m TS2322: [0mType '{ subjectId: string; subjectName: string; subjectCode: string; averageScore: number; passRate: number; totalGrades: number; highestScore: number; }[]' is not assignable to type '{ subjectId: string; subjectName: string; subjectCode: string; averageScore: number; passRate: number; totalGrades: number; highestScore: number; lowestScore: number; }[]'.
+  Property 'lowestScore' is missing in type '{ subjectId: string; subjectName: string; subjectCode: string; averageScore: number; passRate: number; totalGrades: number; highestScore: number; }' but required in type '{ subjectId: string; subjectName: string; subjectCode: string; averageScore: number; passRate: number; totalGrades: number; highestScore: number; lowestScore: number; }'.
+
+[7m533[0m       bySubject,
+[7m   [0m [91m      ~~~~~~~~~[0m
+
+  [96msrc/analytics/dto/performance-metrics.dto.ts[0m:[93m38[0m:[93m5[0m
+    [7m38[0m     lowestScore: number;
+    [7m  [0m [96m    ~~~~~~~~~~~[0m
+    'lowestScore' is declared here.
+  [96msrc/analytics/dto/performance-metrics.dto.ts[0m:[93m30[0m:[93m3[0m
+    [7m30[0m   bySubject: {
+    [7m  [0m [96m  ~~~~~~~~~[0m
+    The expected type comes from property 'bySubject' which is declared here on type 'PerformanceMetricsResponseDto'
+[96msrc/analytics/analytics.service.ts[0m:[93m584[0m:[93m54[0m - [91merror[0m[90m TS2304: [0mCannot find name 'lowestScore'.
+
+[7m584[0m         highestScore: Math.max(...subject.scores, 0, lowestScore: Math.min(...subject.scores, 100};
+[7m   [0m [91m                                                     ~~~~~~~~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m584[0m:[93m65[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+[7m584[0m         highestScore: Math.max(...subject.scores, 0, lowestScore: Math.min(...subject.scores, 100};
+[7m   [0m [91m                                                                ~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m584[0m:[93m98[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+[7m584[0m         highestScore: Math.max(...subject.scores, 0, lowestScore: Math.min(...subject.scores, 100};
+[7m   [0m [91m                                                                                                 ~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m614[0m:[93m30[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+[7m614[0m           students: new Set();
+[7m   [0m [91m                             ~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m616[0m:[93m7[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+[7m616[0m       const classData = classMap.get(classId)!;
+[7m   [0m [91m      ~~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m619[0m:[93m6[0m - [91merror[0m[90m TS1128: [0mDeclaration or statement expected.
+
+[7m619[0m     });
+[7m   [0m [91m     ~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m671[0m:[93m45[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'tenantId' does not exist in type 'GradeWhereInput'.
+
+[7m671[0m     const where: Prisma.GradeWhereInput = { tenantId };
+[7m   [0m [91m                                            ~~~~~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m696[0m:[93m34[0m - [91merror[0m[90m TS2339: [0mProperty 'user' does not exist on type '{} & { email: string | null; phone: string | null; address: string | null; id: string; createdAt: Date; updatedAt: Date; tenantId: string; firstName: string; lastName: string; ... 6 more ...; enrolledAt: Date | null; }'.
+
+[7m696[0m           name: `${grade.student.user.firstName} ${grade.student.user.lastName}`,
+[7m   [0m [91m                                 ~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m696[0m:[93m66[0m - [91merror[0m[90m TS2339: [0mProperty 'user' does not exist on type '{} & { email: string | null; phone: string | null; address: string | null; id: string; createdAt: Date; updatedAt: Date; tenantId: string; firstName: string; lastName: string; ... 6 more ...; enrolledAt: Date | null; }'.
+
+[7m696[0m           name: `${grade.student.user.firstName} ${grade.student.user.lastName}`,
+[7m   [0m [91m                                                                 ~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m724[0m:[93m45[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'tenantId' does not exist in type 'GradeWhereInput'.
+
+[7m724[0m     const where: Prisma.GradeWhereInput = { tenantId };
+[7m   [0m [91m                                            ~~~~~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m757[0m:[93m34[0m - [91merror[0m[90m TS2339: [0mProperty 'user' does not exist on type '{} & { email: string | null; phone: string | null; address: string | null; id: string; createdAt: Date; updatedAt: Date; tenantId: string; firstName: string; lastName: string; ... 6 more ...; enrolledAt: Date | null; }'.
+
+[7m757[0m           name: `${grade.student.user.firstName} ${grade.student.user.lastName}`,
+[7m   [0m [91m                                 ~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m757[0m:[93m66[0m - [91merror[0m[90m TS2339: [0mProperty 'user' does not exist on type '{} & { email: string | null; phone: string | null; address: string | null; id: string; createdAt: Date; updatedAt: Date; tenantId: string; firstName: string; lastName: string; ... 6 more ...; enrolledAt: Date | null; }'.
+
+[7m757[0m           name: `${grade.student.user.firstName} ${grade.student.user.lastName}`,
+[7m   [0m [91m                                                                 ~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m758[0m:[93m35[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+[7m758[0m           subjectScores: new Map();
+[7m   [0m [91m                                  ~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m760[0m:[93m7[0m - [91merror[0m[90m TS1005: [0m',' expected.
+
+[7m760[0m       const student = studentData.get(grade.studentId)!;
+[7m   [0m [91m      ~~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m766[0m:[93m6[0m - [91merror[0m[90m TS1128: [0mDeclaration or statement expected.
+
+[7m766[0m     });
+[7m   [0m [91m     ~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m801[0m:[93m49[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'tenantId' does not exist in type 'FeeStatusWhereInput'.
+
+[7m801[0m     const where: Prisma.FeeStatusWhereInput = { tenantId };
+[7m   [0m [91m                                                ~~~~~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m878[0m:[93m7[0m - [91merror[0m[90m TS2322: [0mType '{ studentId: string; studentName: string; className: string; status: string; terms: number; }[]' is not assignable to type '{ studentId: string; studentName: string; className: string; status: FeeStatus; termCount: number; }[]'.
+  Property 'termCount' is missing in type '{ studentId: string; studentName: string; className: string; status: string; terms: number; }' but required in type '{ studentId: string; studentName: string; className: string; status: FeeStatus; termCount: number; }'.
+
+[7m878[0m       outstandingStudents};
+[7m   [0m [91m      ~~~~~~~~~~~~~~~~~~~[0m
+
+  [96msrc/analytics/dto/fee-status-report.dto.ts[0m:[93m50[0m:[93m5[0m
+    [7m50[0m     termCount: number;
+    [7m  [0m [96m    ~~~~~~~~~[0m
+    'termCount' is declared here.
+  [96msrc/analytics/dto/fee-status-report.dto.ts[0m:[93m45[0m:[93m3[0m
+    [7m45[0m   outstandingStudents: {
+    [7m  [0m [96m  ~~~~~~~~~~~~~~~~~~~[0m
+    The expected type comes from property 'outstandingStudents' which is declared here on type 'FeeStatusReportResponseDto'
+[96msrc/analytics/analytics.service.ts[0m:[93m970[0m:[93m7[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'tenantId' does not exist in type 'FeeStatusWhereInput'.
+
+[7m970[0m       tenantId,
+[7m   [0m [91m      ~~~~~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m1009[0m:[93m38[0m - [91merror[0m[90m TS2339: [0mProperty 'user' does not exist on type '{ enrollments: ({ class: { id: string; createdAt: Date; updatedAt: Date; tenantId: string; level: string; arm: string | null; capacity: number | null; }; } & { id: string; createdAt: Date; ... 7 more ...; promotedAt: Date | null; })[]; } & { ...; }'.
+
+[7m1009[0m           studentName: `${fs.student.user.firstName} ${fs.student.user.lastName}`,
+[7m    [0m [91m                                     ~~~~[0m
+[96msrc/analytics/analytics.service.ts[0m:[93m1009[0m:[93m67[0m - [91merror[0m[90m TS2339: [0mProperty 'user' does not exist on type '{ enrollments: ({ class: { id: string; createdAt: Date; updatedAt: Date; tenantId: string; level: string; arm: string | null; capacity: number | null; }; } & { id: string; createdAt: Date; ... 7 more ...; promotedAt: Date | null; })[]; } & { ...; }'.
+
+[7m1009[0m           studentName: `${fs.student.user.firstName} ${fs.student.user.lastName}`,
+[7m    [0m [91m                                                                  ~~~~[0m
+[96msrc/analytics/dto/fee-status-report.dto.ts[0m:[93m49[0m:[93m13[0m - [91merror[0m[90m TS2304: [0mCannot find name 'FeeStatus'.
+
+[7m49[0m     status: FeeStatus;
+[7m  [0m [91m            ~~~~~~~~~[0m
+[96msrc/announcement/announcement.service.ts[0m:[93m86[0m:[93m38[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'name' does not exist in type 'ClassSelect<DefaultArgs>'.
+
+[7m86[0m         class: { select: { id: true, name: true, code: true } },
+[7m  [0m [91m                            

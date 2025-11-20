@@ -1,0 +1,86 @@
+
+> web@0.1.0 build C:\Users\akabo\OneDrive\Documents\classpoint\my-turborepo\apps\web
+> next build
+
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\akabo\package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * C:\Users\akabo\OneDrive\Documents\classpoint\my-turborepo\pnpm-lock.yaml
+   * C:\Users\akabo\OneDrive\Documents\classpoint\pnpm-lock.yaml
+
+   ▲ Next.js 15.5.0
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 29.4s
+   Skipping validation of types
+   Skipping linting
+   Collecting page data ...
+   Generating static pages (0/33) ...
+   Generating static pages (8/33) 
+   Generating static pages (16/33) 
+   Generating static pages (24/33) 
+ ✓ Generating static pages (33/33)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                  Size  First Load JS
+┌ ○ /                                       132 B         102 kB
+├ ○ /_not-found                              1 kB         103 kB
+├ ○ /dashboard                            3.18 kB         331 kB
+├ ○ /dashboard/analytics                   5.7 kB         337 kB
+├ ○ /dashboard/announcements              3.54 kB         344 kB
+├ ƒ /dashboard/announcements/[id]         4.88 kB         187 kB
+├ ○ /dashboard/announcements/new          4.33 kB         233 kB
+├ ○ /dashboard/assessments                2.34 kB         330 kB
+├ ƒ /dashboard/assessments/[id]           4.53 kB         181 kB
+├ ○ /dashboard/assessments/new            4.19 kB         232 kB
+├ ○ /dashboard/attendance                 5.96 kB         212 kB
+├ ○ /dashboard/attendance/history         3.96 kB         338 kB
+├ ○ /dashboard/calendar                   5.74 kB         346 kB
+├ ƒ /dashboard/calendar/[id]              6.14 kB         188 kB
+├ ○ /dashboard/calendar/new               4.31 kB         233 kB
+├ ○ /dashboard/classes                    2.35 kB         330 kB
+├ ƒ /dashboard/classes/[id]               4.75 kB         200 kB
+├ ƒ /dashboard/classes/[id]/edit          3.94 kB         232 kB
+├ ○ /dashboard/classes/new                 3.6 kB         232 kB
+├ ○ /dashboard/enrollments                3.34 kB         338 kB
+├ ƒ /dashboard/enrollments/[id]           4.63 kB         210 kB
+├ ○ /dashboard/enrollments/new            4.15 kB         232 kB
+├ ○ /dashboard/households                 2.32 kB         330 kB
+├ ƒ /dashboard/households/[id]            5.05 kB         181 kB
+├ ○ /dashboard/households/new             4.26 kB         203 kB
+├ ○ /dashboard/settings                    3.5 kB         180 kB
+├ ○ /dashboard/settings/profile           6.12 kB         205 kB
+├ ○ /dashboard/settings/school            6.42 kB         205 kB
+├ ○ /dashboard/students                    3.3 kB         176 kB
+├ ƒ /dashboard/students/[id]               3.8 kB         176 kB
+├ ƒ /dashboard/students/[id]/edit         4.16 kB         199 kB
+├ ○ /dashboard/students/new               5.13 kB         196 kB
+├ ○ /dashboard/teachers                    2.2 kB         330 kB
+├ ƒ /dashboard/teachers/[id]              4.95 kB         195 kB
+├ ƒ /dashboard/teachers/[id]/edit          3.8 kB         232 kB
+├ ○ /dashboard/teachers/new               3.41 kB         232 kB
+├ ○ /forgot-password                       3.2 kB         180 kB
+├ ○ /login                                5.07 kB         189 kB
+├ ○ /reset-password                       3.58 kB         180 kB
+├ ƒ /school/[slug]                        11.1 kB         117 kB
+├ ○ /signup                               3.81 kB         180 kB
+└ ○ /verify-email                         3.35 kB         180 kB
++ First Load JS shared by all              102 kB
+  ├ chunks/2695-0492206ce960571e.js         46 kB
+  ├ chunks/52830e44-77a6148a33fbe050.js   54.2 kB
+  └ other shared chunks (total)           2.01 kB
+
+Route (pages)                                Size  First Load JS
+─ ƒ /api/health                               0 B        95.2 kB
++ First Load JS shared by all             95.2 kB
+  ├ chunks/framework-70d1d6228684fbf4.js  57.7 kB
+  ├ chunks/main-8dffd177ade06f6f.js       35.2 kB
+  └ other shared chunks (total)           2.29 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

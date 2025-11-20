@@ -1,0 +1,25 @@
+version: 1
+applications:
+  - appRoot: apps/web
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - echo "Installing dependencies..."
+            - cd ../..
+            - npm install -g pnpm@9.0.0
+            - pnpm install --frozen-lockfile
+        build:
+          commands:
+            - echo "Building web application..."
+            - cd apps/web
+            - pnpm build
+      artifacts:
+        baseDirectory: .next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - ../../node_modules/**/*
+          - node_modules/**/*
+          - .next/cache/**/*
