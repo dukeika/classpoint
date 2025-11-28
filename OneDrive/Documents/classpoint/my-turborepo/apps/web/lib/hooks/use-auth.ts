@@ -1,7 +1,24 @@
 import { useAuthStore } from '../stores/auth-store'
 
+// DEVELOPMENT MODE: Set to true to use mock user data
+const DEV_MODE = false
+
+// Mock user for development
+const DEV_USER = {
+  id: 'dev-user-1',
+  email: 'dev@classpoint.test',
+  firstName: 'Demo',
+  lastName: 'User',
+  role: 'ADMIN' as const,
+  tenantId: 'dev-tenant-1',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+}
+
 /**
  * Hook to access authentication state and methods
+ *
+ * DEV MODE: When DEV_MODE = true, provides mock user data for UI testing
  */
 export function useAuth() {
   const {
@@ -14,6 +31,20 @@ export function useAuth() {
     updateUser,
     initialize,
   } = useAuthStore()
+
+  // In development mode, provide mock user data
+  if (DEV_MODE && !user) {
+    return {
+      user: DEV_USER,
+      token: 'mock-token',
+      isAuthenticated: true,
+      isLoading: false,
+      login,
+      logout,
+      updateUser,
+      initialize,
+    }
+  }
 
   return {
     user,
