@@ -2,7 +2,7 @@ name: Deploy Web App to ECR
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
     paths:
       - 'my-turborepo/apps/web/**'
       - 'my-turborepo/packages/**'
@@ -39,7 +39,7 @@ jobs:
           NEXT_PUBLIC_API_URL: https://mjz3sz22ir.eu-west-2.awsapprunner.com
           NEXT_PUBLIC_AWS_REGION: eu-west-2
           NEXT_PUBLIC_COGNITO_USER_POOL_ID: eu-west-2_yC8ZQo484
-          NEXT_PUBLIC_COGNITO_CLIENT_ID: 5qfp29j8uttl0cq560o44a3214
+          NEXT_PUBLIC_COGNITO_CLIENT_ID: gno2qu84tmovsu9801653o8br
         run: |
           cd my-turborepo
           echo "Building Docker image with production Dockerfile..."
