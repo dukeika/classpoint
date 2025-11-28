@@ -36,10 +36,20 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: classpoint-web
           IMAGE_TAG: ${{ github.sha }}
+          NEXT_PUBLIC_API_URL: https://mjz3sz22ir.eu-west-2.awsapprunner.com
+          NEXT_PUBLIC_AWS_REGION: eu-west-2
+          NEXT_PUBLIC_COGNITO_USER_POOL_ID: eu-west-2_yC8ZQo484
+          NEXT_PUBLIC_COGNITO_CLIENT_ID: 5qfp29j8uttl0cq560o44a3214
         run: |
           cd my-turborepo
           echo "Building Docker image with production Dockerfile..."
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f apps/web/Dockerfile.production .
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+            --build-arg NEXT_PUBLIC_AWS_REGION=$NEXT_PUBLIC_AWS_REGION \
+            --build-arg NEXT_PUBLIC_COGNITO_USER_POOL_ID=$NEXT_PUBLIC_COGNITO_USER_POOL_ID \
+            --build-arg NEXT_PUBLIC_COGNITO_CLIENT_ID=$NEXT_PUBLIC_COGNITO_CLIENT_ID \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -f apps/web/Dockerfile.production .
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
           echo "Pushing Docker image to ECR..."
