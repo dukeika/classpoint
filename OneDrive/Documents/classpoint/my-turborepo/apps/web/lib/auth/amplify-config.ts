@@ -5,7 +5,7 @@ export const amplifyConfig: ResourcesConfig = {
     Cognito: {
       region: process.env.NEXT_PUBLIC_AWS_REGION || 'eu-west-2',
       userPoolId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || 'eu-west-2_yC8ZQo484',
-      userPoolClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || '5qfp29j8uttl0cq560o44a3214',
+      userPoolClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || 'gno2qu84tmovsu9801653o8br',
       loginWith: {
         email: true,
       },
