@@ -3,8 +3,9 @@ import { ResourcesConfig } from 'aws-amplify'
 export const amplifyConfig: ResourcesConfig = {
   Auth: {
     Cognito: {
-      userPoolId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || 'af-south-1_kqGYNh2kd',
-      userPoolClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || '2ue3pomcpsjvargqq0ir3frmm0',
+      region: process.env.NEXT_PUBLIC_AWS_REGION || 'eu-west-2',
+      userPoolId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || 'eu-west-2_yC8ZQo484',
+      userPoolClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || '5qfp29j8uttl0cq560o44a3214',
       loginWith: {
         email: true,
       },
@@ -19,13 +20,14 @@ export const amplifyConfig: ResourcesConfig = {
         family_name: {
           required: true,
         },
+        // Custom attributes are allowed by Cognito even if not in the strict type; keep optional.
         'custom:tenant_id': {
           required: false,
         },
         'custom:roles': {
           required: false,
         },
-      },
+      } satisfies Record<string, { required: boolean }>,
       passwordFormat: {
         minLength: 12,
         requireLowercase: true,
