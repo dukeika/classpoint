@@ -2,7 +2,7 @@ name: Deploy Web App to ECR
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
     paths:
       - 'OneDrive/Documents/classpoint/my-turborepo/apps/web/**'
       - 'OneDrive/Documents/classpoint/my-turborepo/packages/**'
