@@ -1,0 +1,8 @@
+node_modules
+.next
+out
+ms-playwright
+playwright-login.mjs
+next-env.d.ts
+.next
+node_modules
