@@ -23,36 +23,44 @@ export class AttendanceReportQueryDto {
   session?: AttendanceSession;
 }
 
+export interface AttendanceSummaryDto {
+  totalStudents: number;
+  totalRecords: number;
+  averageAttendanceRate: number;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  excusedCount: number;
+}
+
+export interface AttendanceClassBreakdownDto {
+  classId: string;
+  className: string;
+  attendanceRate: number;
+  totalStudents: number;
+  averagePresent: number;
+}
+
+export interface AttendanceStudentBreakdownDto {
+  studentId: string;
+  studentName: string;
+  attendanceRate: number;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  excusedCount: number;
+}
+
+export interface AttendanceTrendPointDto {
+  date: string;
+  attendanceRate: number;
+  presentCount: number;
+  absentCount: number;
+}
+
 export class AttendanceReportResponseDto {
-  summary!: {
-    totalStudents!: number;
-    totalRecords!: number;
-    averageAttendanceRate!: number;
-    presentCount!: number;
-    absentCount!: number;
-    lateCount!: number;
-    excusedCount!: number;
-  };
-  byClass!: {
-    classId!: string;
-    className!: string;
-    attendanceRate!: number;
-    totalStudents!: number;
-    averagePresent!: number;
-  }[];
-  byStudent!: {
-    studentId!: string;
-    studentName!: string;
-    attendanceRate!: number;
-    presentCount!: number;
-    absentCount!: number;
-    lateCount!: number;
-    excusedCount!: number;
-  }[];
-  dailyTrend!: {
-    date!: string;
-    attendanceRate!: number;
-    presentCount!: number;
-    absentCount!: number;
-  }[];
+  summary!: AttendanceSummaryDto;
+  byClass!: AttendanceClassBreakdownDto[];
+  byStudent!: AttendanceStudentBreakdownDto[];
+  dailyTrend!: AttendanceTrendPointDto[];
 }
