@@ -1,0 +1,1856 @@
+# ============================================================
+# ClassPoint - Multi-tenant (School = Tenant) GraphQL Schema
+# Target: AWS AppSync / Amplify @model-style schema
+#
+# Key tenancy rule:
+# - Every tenant-scoped model includes: schoolId: ID!
+# - Auth pattern assumes Cognito token contains custom claim: custom:schoolId
+#   and uses ownerField="schoolId" to enforce tenant isolation.
+#
+# NOTE:
+# - Fine-grained role can do X is best enforced via:
+#   (a) app layer checks + RBAC permissions tables, and/or
+#   (b) custom resolvers/Lambda authorizer.
+#   This schema provides strong tenant isolation + basic admin controls.
+# ============================================================
+
+# ------------------------------
+# Scalars
+# ------------------------------
+scalar AWSDate
+scalar AWSDateTime
+scalar AWSJSON
+scalar AWSEmail
+scalar AWSPhone
+
+# ------------------------------
+# Custom directives (no-op in AppSync; for docs/consistency)
+# ------------------------------
+directive @model on OBJECT
+directive @auth(rules: [AuthRule]) on OBJECT | FIELD_DEFINITION
+directive @index(name: String, queryField: String, fields: [String]) on FIELD_DEFINITION
+directive @hasOne(fields: [String]) on FIELD_DEFINITION
+directive @hasMany(indexName: String, fields: [String]) on FIELD_DEFINITION
+
+input AuthRule {
+  allow: AuthStrategy!
+  ownerField: String
+  identityClaim: String
+  groups: [String]
+  operations: [AuthOperation]
+}
+
+enum AuthStrategy { owner groups private public }
+enum AuthOperation { create read update delete }
+
+# ------------------------------
+# Enums
+# ------------------------------
+enum SchoolStatus { PROVISIONING ACTIVE SUSPENDED CLOSED }
+enum SubscriptionStatus { TRIAL ACTIVE PAST_DUE SUSPENDED CANCELLED }
+enum DomainType { SUBDOMAIN CUSTOM_DOMAIN }
+
+enum UserType { SCHOOL_ADMIN STAFF PARENT STUDENT }
+enum UserStatus { INVITED ACTIVE SUSPENDED }
+
+enum AudienceType { ALL PARENTS STAFF CLASS_ONLY }
+
+enum FeeCategory { TUITION LEVY UNIFORM BOOKS TRANSPORT LUNCH EXAM OTHER }
+enum InvoiceStatus { DRAFT ISSUED PARTIALLY_PAID PAID VOID }
+
+enum PaymentProvider { PAYSTACK FLUTTERWAVE OTHER }
+enum PaymentIntentStatus { INITIATED PENDING SUCCEEDED FAILED CANCELLED }
+enum PaymentMethod { CARD TRANSFER USSD CASH MANUAL }
+enum PaymentTxnStatus { PENDING CONFIRMED REVERSED REFUNDED }
+
+enum ProofStatus { SUBMITTED APPROVED REJECTED }
+enum AdjustmentType { DISCOUNT WAIVER PENALTY REVERSAL }
+
+enum AttendanceStatus { PRESENT ABSENT LATE EXCUSED }
+
+enum AssessmentStatus { OPEN SUBMITTED LOCKED }
+enum ReportCardStatus { DRAFT READY PUBLISHED }
+
+enum MessageChannel { WHATSAPP SMS EMAIL IN_APP }
+enum CampaignStatus { DRAFT SCHEDULED SENDING COMPLETED CANCELLED }
+enum DeliveryStatus { PENDING SENT DELIVERED FAILED }
+enum SupportTicketStatus { OPEN IN_REVIEW RESOLVED CLOSED }
+enum SupportTicketAuthorType { PARENT STAFF }
+
+type DeliveryStatusEntry {
+  status: DeliveryStatus!
+  at: AWSDateTime!
+  providerMessageId: String
+  error: String
+}
+
+# ============================================================
+# PLATFORM / GLOBAL CATALOG
+# ============================================================
+
+type Plan
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: private, operations: [read] }
+]) {
+  id: ID!
+  code: String! @index(name: "byPlanCode", queryField: "planByCode", fields: ["code"])
+  name: String!
+  description: String
+  billingCycle: String! # TERM | SESSION | YEAR (string for flexibility)
+  basePrice: Float!
+  currency: String! # "NGN"
+  status: String! # ACTIVE | RETIRED
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+type AddOn
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: private, operations: [read] }
+]) {
+  id: ID!
+  code: String! @index(name: "byAddOnCode", queryField: "addOnByCode", fields: ["code"])
+  name: String!
+  description: String
+  pricingModel: String! # PER_STUDENT_PER_TERM | PER_SCHOOL_PER_TERM | FLAT
+  price: Float!
+  status: String! # ACTIVE | RETIRED
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+type Permission
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: private, operations: [read] }
+]) {
+  id: ID!
+  code: String! @index(name: "byPermissionCode", queryField: "permissionByCode", fields: ["code"])
+  description: String
+}
+
+# ============================================================
+# TENANT ROOT: SCHOOL + SUBDOMAIN + SUBSCRIPTION
+# ============================================================
+
+type School
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] }, # tenant isolation: logged in users can read their own school record
+  { allow: owner, ownerField: "tenantKey", identityClaim: "custom:schoolId", operations: [read] }
+]) {
+  id: ID!
+
+  # Important: set tenantKey = id (same UUID) on creation, used for auth.
+  tenantKey: ID!
+  name: String!
+  slug: String! @index(name: "bySchoolSlug", queryField: "schoolBySlug", fields: ["slug"])
+  status: SchoolStatus!
+  primaryCity: String
+  createdAt: AWSDateTime
+  activatedAt: AWSDateTime
+  updatedAt: AWSDateTime
+
+  profile: SchoolProfile @hasOne(fields: ["id"]) # create profile with id == school.id
+  domains: [SchoolDomain] @hasMany(indexName: "bySchool", fields: ["id"])
+  subscription: [SchoolSubscription] @hasMany(indexName: "bySchool", fields: ["id"])
+}
+
+type SchoolDomain
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchool", queryField: "domainsBySchool", fields: ["schoolId", "hostname"])
+  type: DomainType!
+  hostname: String!
+  verified: Boolean!
+  verifiedAt: AWSDateTime
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+type SchoolProfile
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+
+  # Keep id == school.id for simple @hasOne relationship from School
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolProfile", queryField: "schoolProfileBySchool", fields: ["schoolId"])
+  address: String
+  city: String
+  state: String
+  contactEmail: AWSEmail
+  contactPhone: AWSPhone
+  logoUrl: String
+  heroImageUrl: String
+  themeJson: AWSJSON
+  updatedAt: AWSDateTime
+}
+
+type SchoolSetupState
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolSetup", queryField: "setupStateBySchool", fields: ["schoolId", "updatedAt"])
+  stateJson: AWSJSON!
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+type SchoolHomePageSection
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolSections", queryField: "homeSectionsBySchool", fields: ["schoolId", "sortOrder"])
+  type: String! # HERO/ABOUT/FEATURES/ANNOUNCEMENTS/CALENDAR/ADMISSIONS_CTA/FOOTER
+  contentJson: AWSJSON!
+  sortOrder: Int!
+  isEnabled: Boolean!
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+type SchoolSubscription
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchool", queryField: "subscriptionsBySchool", fields: ["schoolId", "startAt"])
+  planId: ID! @index(name: "byPlan", queryField: "subscriptionsByPlan", fields: ["planId", "startAt"])
+  status: SubscriptionStatus!
+  startAt: AWSDateTime!
+  endAt: AWSDateTime
+  renewalAt: AWSDateTime
+  gracePeriodDays: Int
+  notes: String
+
+  addOns: [SchoolSubscriptionAddOn] @hasMany(indexName: "bySubscription", fields: ["id"])
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+type SchoolSubscriptionAddOn
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  subscriptionId: ID! @index(name: "bySubscription", queryField: "addOnsBySubscription", fields: ["subscriptionId", "effectiveAt"])
+  addOnId: ID! @index(name: "byAddOn", queryField: "schoolsByAddOn", fields: ["addOnId", "effectiveAt"])
+  status: String! # ACTIVE/INACTIVE
+  effectiveAt: AWSDateTime!
+}
+
+type ProviderConfig
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolProvider", queryField: "providerConfigsBySchool", fields: ["schoolId", "type"])
+  type: String! # PAYMENT_GATEWAY/WHATSAPP/SMS/EMAIL
+  providerName: String!
+  configJson: AWSJSON! # store encrypted at rest at DB layer
+  status: String! # ACTIVE/DISABLED
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# ============================================================
+# TENANT USERS + RBAC
+# ============================================================
+
+type User
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolUsers", queryField: "usersBySchool", fields: ["schoolId", "userType"])
+  email: AWSEmail
+  phone: AWSPhone
+  name: String!
+  userType: UserType!
+  status: UserStatus!
+  mfaEnabled: Boolean
+  lastLoginAt: AWSDateTime
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+
+  roles: [UserRole] @hasMany(indexName: "byUser", fields: ["id"])
+}
+
+type Role
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolRoles", queryField: "rolesBySchool", fields: ["schoolId", "name"])
+  name: String!
+  isSystemRole: Boolean!
+  permissions: [RolePermission] @hasMany(indexName: "byRole", fields: ["id"])
+}
+
+type RolePermission
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  roleId: ID! @index(name: "byRole", queryField: "rolePermissionsByRole", fields: ["roleId", "permissionCode"])
+  permissionCode: String! # references Permission.code
+}
+
+type UserRole
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  userId: ID! @index(name: "byUser", queryField: "userRolesByUser", fields: ["userId", "roleId"])
+  roleId: ID!
+}
+
+type AuditEvent
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId", operations: [read] }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolAudit", queryField: "auditBySchool", fields: ["schoolId", "createdAt"])
+  actorUserId: ID
+  action: String!
+  entityType: String!
+  entityId: ID!
+  beforeJson: AWSJSON
+  afterJson: AWSJSON
+  ipAddress: String
+  userAgent: String
+  createdAt: AWSDateTime!
+}
+
+type AuditEventConnection {
+  items: [AuditEvent]
+  nextToken: String
+}
+
+# ============================================================
+# PUBLIC CONTENT (Announcements + Calendar)
+# ============================================================
+
+type Announcement
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] }, # allow tenant users
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }, # optional: public read for school homepage (keep minimal)
+  { allow: public, operations: [read] }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolAnnouncements", queryField: "announcementsBySchool", fields: ["schoolId", "publishedAt"])
+  title: String!
+  body: String!
+  audience: AudienceType!
+  classGroupId: ID
+  attachmentsJson: AWSJSON
+  publishedAt: AWSDateTime!
+  expiresAt: AWSDateTime
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+type CalendarEvent
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" },
+  { allow: public, operations: [read] }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolEvents", queryField: "eventsBySchool", fields: ["schoolId", "startAt"])
+  title: String!
+  description: String
+  startAt: AWSDateTime!
+  endAt: AWSDateTime!
+  audience: AudienceType!
+  classGroupId: ID
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# ============================================================
+# ACADEMIC STRUCTURE
+# ============================================================
+
+type AcademicSession
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolSession", queryField: "sessionsBySchool", fields: ["schoolId", "startDate"])
+  name: String!
+  startDate: AWSDate!
+  endDate: AWSDate!
+  status: String! # ACTIVE/ARCHIVED
+  terms: [Term] @hasMany(indexName: "bySession", fields: ["id"])
+}
+
+type Term
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  sessionId: ID! @index(name: "bySession", queryField: "termsBySession", fields: ["sessionId", "startDate"])
+  name: String!
+  startDate: AWSDate!
+  endDate: AWSDate!
+  status: String! # UPCOMING/ACTIVE/CLOSED
+}
+
+type Level
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolLevel", queryField: "levelsBySchool", fields: ["schoolId", "sortOrder"])
+  type: String! # PRIMARY/SECONDARY
+  name: String!
+  sortOrder: Int!
+}
+
+type ClassYear
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolClassYear", queryField: "classYearsBySchool", fields: ["schoolId", "sortOrder"])
+  levelId: ID!
+  name: String!
+  sortOrder: Int!
+}
+
+type ClassArm
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolArm", queryField: "classArmsBySchool", fields: ["schoolId", "name"])
+  name: String!
+}
+
+type ClassGroup
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolClassGroup", queryField: "classGroupsBySchool", fields: ["schoolId", "displayName"])
+  classYearId: ID!
+  classArmId: ID
+  displayName: String!
+  classTeacherUserId: ID
+}
+
+type Subject
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolSubject", queryField: "subjectsBySchool", fields: ["schoolId", "name"])
+  name: String!
+  code: String
+  levelType: String # PRIMARY/SECONDARY/BOTH
+}
+
+type ClassSubject
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  classYearId: ID! @index(name: "byClassYear", queryField: "subjectsByClassYear", fields: ["classYearId", "subjectId"])
+  subjectId: ID!
+  isCompulsory: Boolean!
+}
+
+# ============================================================
+# STUDENTS, PARENTS, ENROLLMENT
+# ============================================================
+
+type Student
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolStudents", queryField: "studentsBySchool", fields: ["schoolId", "admissionNo"])
+  admissionNo: String!
+  firstName: String!
+  lastName: String!
+  dob: AWSDate
+  gender: String
+  photoUrl: String
+  status: String! # ACTIVE/TRANSFERRED/GRADUATED/ARCHIVED
+}
+
+type ParentGuardian
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolParents", queryField: "parentsBySchool", fields: ["schoolId", "primaryPhone"])
+  userId: ID
+  fullName: String!
+  primaryPhone: AWSPhone!
+  email: AWSEmail
+  preferredChannel: MessageChannel
+  optedOut: Boolean
+  optedOutChannels: [MessageChannel]
+  status: String! # ACTIVE/INACTIVE
+  children: [StudentParentLink] @hasMany(indexName: "byParent", fields: ["id"])
+}
+
+# ============================================================
+# IMPORT JOBS
+# ============================================================
+
+type ImportJob
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolImportJob", queryField: "importJobsBySchool", fields: ["schoolId", "createdAt"])
+  bucket: String!
+  key: String!
+    status: String! # QUEUED/PROCESSING/COMPLETED/FAILED
+    processedLines: Int
+    created: Int
+    updated: Int
+    skipped: Int
+    errors: Int
+    errorReportKey: String
+  createdAt: AWSDateTime!
+  processedAt: AWSDateTime
+}
+
+type StudentParentLink
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  studentId: ID! @index(name: "byStudent", queryField: "parentsByStudent", fields: ["studentId", "parentId"])
+  parentId: ID! @index(name: "byParent", queryField: "studentsByParent", fields: ["parentId", "studentId"])
+  relationship: String! # MOTHER/FATHER/GUARDIAN/OTHER
+  isPrimary: Boolean!
+}
+
+type Enrollment
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  studentId: ID! @index(name: "byStudentEnrollment", queryField: "enrollmentsByStudent", fields: ["studentId", "termId"])
+  sessionId: ID!
+  termId: ID! @index(name: "byTermEnrollment", queryField: "enrollmentsByTerm", fields: ["termId", "classGroupId"])
+  classGroupId: ID!
+  status: String! # ENROLLED/WITHDRAWN
+}
+
+# ============================================================
+# FEES: ITEMS, SCHEDULES, INVOICES, PAYMENTS
+# ============================================================
+
+type FeeItem
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolFeeItem", queryField: "feeItemsBySchool", fields: ["schoolId", "name"])
+  name: String!
+  description: String
+  category: FeeCategory!
+  isOptional: Boolean!
+  isActive: Boolean!
+}
+
+type FeeSchedule
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  sessionId: ID!
+  termId: ID! @index(name: "byTermFeeSchedule", queryField: "feeSchedulesByTerm", fields: ["termId", "classYearId"])
+
+  # Default: per classYear. For special cases you can use classGroupId instead.
+
+  classYearId: ID!
+  classGroupId: ID
+  name: String!
+  currency: String! # NGN
+  isActive: Boolean!
+
+  lines: [FeeScheduleLine] @hasMany(indexName: "bySchedule", fields: ["id"])
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+type FeeScheduleLine
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  feeScheduleId: ID! @index(name: "bySchedule", queryField: "feeScheduleLinesBySchedule", fields: ["feeScheduleId", "sortOrder"])
+  feeItemId: ID!
+  amount: Float!
+  isOptionalOverride: Boolean
+  dueDate: AWSDate
+  sortOrder: Int!
+}
+
+type DiscountRule
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolDiscount", queryField: "discountRulesBySchool", fields: ["schoolId", "type"])
+  type: String! # SIBLING/EARLY_PAYMENT/SCHOLARSHIP/FIXED_CUSTOM
+  valueType: String! # PERCENT/FIXED
+  value: Float!
+  criteriaJson: AWSJSON
+  isActive: Boolean!
+}
+
+type Invoice
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  invoiceNo: String! @index(name: "bySchoolInvoiceNo", queryField: "invoiceByNumber", fields: ["schoolId", "invoiceNo"])
+  studentId: ID! @index(name: "byStudentInvoice", queryField: "invoicesByStudent", fields: ["studentId", "termId"])
+  enrollmentId: ID
+  sessionId: ID!
+  termId: ID! @index(name: "byTermClassGroup", queryField: "invoicesByTermClassGroup", fields: ["termId", "classGroupId"])
+  classGroupId: ID
+  status: InvoiceStatus!
+  issuedAt: AWSDateTime
+  dueAt: AWSDateTime
+
+  requiredSubtotal: Float!
+  optionalSubtotal: Float!
+  discountTotal: Float!
+  penaltyTotal: Float!
+  amountPaid: Float!
+  amountDue: Float!
+
+  lines: [InvoiceLine] @hasMany(indexName: "byInvoice", fields: ["id"])
+  payments: [PaymentTransaction] @hasMany(indexName: "byInvoicePayment", fields: ["id"])
+  adjustments: [FeeAdjustment] @hasMany(indexName: "byInvoiceAdjustment", fields: ["id"])
+}
+
+type InvoiceLine
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  invoiceId: ID! @index(name: "byInvoice", queryField: "invoiceLinesByInvoice", fields: ["invoiceId", "sortOrder"])
+  feeItemId: ID
+  label: String! # snapshot at invoice creation
+  description: String
+  amount: Float!
+  isOptional: Boolean!
+  isSelected: Boolean
+  sortOrder: Int!
+}
+
+type PaymentIntent
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  invoiceId: ID! @index(name: "byInvoiceIntent", queryField: "paymentIntentsByInvoice", fields: ["invoiceId", "createdAt"])
+  payerParentId: ID
+  provider: PaymentProvider!
+  amount: Float!
+  currency: String!
+  status: PaymentIntentStatus!
+  externalReference: String
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime
+}
+
+type PaymentTransaction
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  invoiceId: ID! @index(name: "byInvoicePayment", queryField: "paymentsByInvoice", fields: ["invoiceId", "paidAt"])
+  paymentIntentId: ID
+  method: PaymentMethod!
+  amount: Float!
+  currency: String!
+  status: PaymentTxnStatus!
+  paidAt: AWSDateTime
+  reference: String
+  receiptNo: String
+  recordedByUserId: ID
+
+  proofs: [ManualPaymentProof] @hasMany(indexName: "byPaymentTxn", fields: ["id"])
+  allocations: [PaymentAllocation] @hasMany(indexName: "byPaymentTxnAlloc", fields: ["id"])
+}
+
+type Receipt
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  receiptNo: String!
+  invoiceId: ID! @index(name: "byInvoiceReceipt", queryField: "receiptsByInvoice", fields: ["invoiceId", "createdAt"])
+  paymentReference: String
+  amount: Float!
+  currency: String!
+  receiptUrl: String
+  receiptBucket: String
+  receiptKey: String
+  paidAt: AWSDateTime
+  createdAt: AWSDateTime!
+}
+
+type PaymentAllocation
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  paymentTxnId: ID! @index(name: "byPaymentTxnAlloc", queryField: "allocationsByPayment", fields: ["paymentTxnId", "invoiceId"])
+  invoiceId: ID!
+  amountAllocated: Float!
+}
+
+type ManualPaymentProof
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  paymentTxnId: ID! @index(name: "byPaymentTxn", queryField: "proofsByPayment", fields: ["paymentTxnId", "createdAt"])
+  fileUrl: String!
+  submittedByParentId: ID
+  status: ProofStatus!
+  reviewedByUserId: ID
+  reviewedAt: AWSDateTime
+  notes: String
+  createdAt: AWSDateTime!
+}
+
+type FeeAdjustment
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  invoiceId: ID! @index(name: "byInvoiceAdjustment", queryField: "adjustmentsByInvoice", fields: ["invoiceId", "createdAt"])
+  type: AdjustmentType!
+  amount: Float!
+  reason: String
+  createdByUserId: ID!
+  approvedByUserId: ID
+  approvedAt: AWSDateTime
+  createdAt: AWSDateTime!
+}
+
+type InstallmentPlan
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  invoiceId: ID! @index(name: "byInvoiceInstallment", queryField: "installmentPlanByInvoice", fields: ["invoiceId", "createdAt"])
+  status: String! # ACTIVE/COMPLETED/CANCELLED
+  totalAmount: Float!
+  installments: [Installment] @hasMany(indexName: "byInstallmentPlan", fields: ["id"])
+  createdAt: AWSDateTime!
+}
+
+type Installment
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  installmentPlanId: ID! @index(name: "byInstallmentPlan", queryField: "installmentsByPlan", fields: ["installmentPlanId", "sequenceNo"])
+  sequenceNo: Int!
+  amount: Float!
+  dueAt: AWSDateTime!
+  status: String! # DUE/PAID/OVERDUE
+}
+
+# ============================================================
+# MESSAGING (Templates + Campaigns)
+# ============================================================
+
+type MessageTemplate
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolTemplate", queryField: "templatesBySchool", fields: ["schoolId", "type"])
+  type: String! # FEE_REMINDER/PAYMENT_RECEIPT/ANNOUNCEMENT/RESULT_READY/etc
+  channel: MessageChannel!
+  subject: String
+  body: String!
+  variablesJson: AWSJSON
+  isActive: Boolean!
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+type MessageCampaign
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolCampaign", queryField: "campaignsBySchool", fields: ["schoolId", "createdAt"])
+  name: String!
+  type: String!
+  channel: MessageChannel!
+  templateId: ID
+  createdByUserId: ID!
+  status: CampaignStatus!
+  scheduledAt: AWSDateTime
+  audienceJson: AWSJSON
+  recipients: [MessageRecipient] @hasMany(indexName: "byCampaign", fields: ["id"])
+  createdAt: AWSDateTime!
+}
+
+type MessageRecipient
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  campaignId: ID! @index(name: "byCampaign", queryField: "recipientsByCampaign", fields: ["campaignId", "destination"])
+  parentId: ID
+  userId: ID
+  destination: String!
+  status: DeliveryStatus!
+  statusHistory: [DeliveryStatusEntry!]
+  providerMessageId: String
+  lastError: String
+  lastUpdatedAt: AWSDateTime
+}
+
+type SupportTicket
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolSupport", queryField: "supportTicketsBySchool", fields: ["schoolId", "createdAt"])
+  parentId: ID! @index(name: "byParentSupport", queryField: "supportTicketsByParent", fields: ["parentId", "createdAt"])
+  studentId: ID
+  subject: String!
+  category: String!
+  detail: String!
+  status: SupportTicketStatus!
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+}
+
+type SupportTicketMessage
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  ticketId: ID! @index(name: "byTicket", queryField: "supportTicketMessagesByTicket", fields: ["ticketId", "createdAt"])
+  authorType: SupportTicketAuthorType!
+  authorId: ID!
+  body: String!
+  createdAt: AWSDateTime!
+}
+
+# ============================================================
+# ATTENDANCE
+# ============================================================
+
+type AttendanceSession
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  termId: ID! @index(name: "byClassDay", queryField: "attendanceSessionsByClassAndDay", fields: ["classGroupId", "date"])
+  classGroupId: ID!
+  date: AWSDate!
+  takenByUserId: ID!
+  entries: [AttendanceEntry] @hasMany(indexName: "byAttendanceSession", fields: ["id"])
+}
+
+type AttendanceEntry
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  attendanceSessionId: ID! @index(name: "byAttendanceSession", queryField: "attendanceEntriesBySession", fields: ["attendanceSessionId", "studentId"])
+  studentId: ID!
+  status: AttendanceStatus!
+  notes: String
+}
+
+# ============================================================
+# ASSESSMENTS + RESULTS
+# ============================================================
+
+type AssessmentPolicy
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolPolicy", queryField: "assessmentPoliciesBySchool", fields: ["schoolId", "name"])
+  name: String!
+  appliesTo: String # PRIMARY/SECONDARY/BOTH
+  componentsJson: AWSJSON! # [{name, weight}, ...]
+  gradingScaleJson: AWSJSON
+  isActive: Boolean!
+}
+
+type Assessment
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  termId: ID! @index(name: "byClassSubjectTerm", queryField: "assessmentsByClassSubjectTerm", fields: ["classGroupId", "subjectId"])
+  classGroupId: ID!
+  subjectId: ID!
+  policyId: ID!
+  title: String!
+  status: AssessmentStatus!
+  scores: [ScoreEntry] @hasMany(indexName: "byAssessment", fields: ["id"])
+}
+
+type ScoreEntry
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  assessmentId: ID! @index(name: "byAssessment", queryField: "scoresByAssessment", fields: ["assessmentId", "studentId"])
+  studentId: ID!
+  scoresJson: AWSJSON! # per component
+  totalScore: Float
+  grade: String
+  enteredByUserId: ID!
+  enteredAt: AWSDateTime!
+}
+
+type ReportCard
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID!
+  studentId: ID! @index(name: "byStudentTermReport", queryField: "reportCardsByStudentTerm", fields: ["studentId", "termId"])
+  termId: ID!
+  classGroupId: ID!
+  status: ReportCardStatus!
+  teacherComment: String
+  headComment: String
+  attendanceSummaryJson: AWSJSON
+  publishedAt: AWSDateTime
+}
+
+type ResultReleasePolicy
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolReleasePolicy", queryField: "releasePolicyBySchool", fields: ["schoolId"])
+  isEnabled: Boolean!
+  minimumPaymentPercent: Int! # 0..100
+  messageToParent: String
+  appliesTo: String # ALL/SECONDARY_ONLY/etc
+}
+
+# ============================================================
+# FEATURE FLAGS (derived from subscription + add-ons)
+# ============================================================
+
+type FeatureFlag
+@model
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN"] },
+  { allow: owner, ownerField: "schoolId", identityClaim: "custom:schoolId" }
+]) {
+  id: ID!
+  schoolId: ID! @index(name: "bySchoolFeature", queryField: "featuresBySchool", fields: ["schoolId", "code"])
+  code: String! # TRANSPORT.ENABLED, ADMISSIONS.ENABLED, etc
+  isEnabled: Boolean!
+  updatedAt: AWSDateTime
+}
+
+type GenerateClassInvoicesResult {
+  createdCount: Int!
+  invoiceIds: [ID!]!
+  skippedCount: Int!
+}
+
+# Root query (core read accessors matching GSIs)
+type Query {
+  ping: String
+  schoolBySlug(slug: String!): School
+  domainsBySchool(schoolId: ID!, limit: Int): [SchoolDomain]
+  schoolProfileBySchool(schoolId: ID!, limit: Int): [SchoolProfile]
+  setupStateBySchool(schoolId: ID!, limit: Int): [SchoolSetupState]
+  homeSectionsBySchool(schoolId: ID!, limit: Int): [SchoolHomePageSection]
+  subjectsBySchool(schoolId: ID!, limit: Int): [Subject]
+  subjectsByClassYear(classYearId: ID!, limit: Int): [ClassSubject]
+    usersBySchool(schoolId: ID!, userType: UserType!, limit: Int): [User]
+  rolesBySchool(schoolId: ID!, limit: Int): [Role]
+  rolePermissionsByRole(roleId: ID!, limit: Int): [RolePermission]
+  userRolesByUser(userId: ID!, limit: Int): [UserRole]
+  auditBySchool(
+    schoolId: ID!
+    limit: Int
+    nextToken: String
+    action: String
+    entityType: String
+    actorUserId: ID
+  ): AuditEventConnection
+  feeSchedulesByTerm(termId: ID!, classYearId: ID!, limit: Int): [FeeSchedule]
+  feeScheduleLinesBySchedule(feeScheduleId: ID!, limit: Int): [FeeScheduleLine]
+  invoicesByStudent(studentId: ID!, termId: ID!, limit: Int): [Invoice]
+  invoicesByTermClassGroup(termId: ID!, classGroupId: ID!, limit: Int): [Invoice]
+  invoiceByNumber(schoolId: ID!, invoiceNo: String!): Invoice
+  invoiceById(schoolId: ID!, id: ID!): Invoice
+  paymentIntentsByInvoice(invoiceId: ID!, limit: Int): [PaymentIntent]
+  paymentsByInvoice(invoiceId: ID!, limit: Int): [PaymentTransaction]
+  paymentsBySchool(schoolId: ID!, limit: Int): [PaymentTransaction]
+  receiptsByInvoice(invoiceId: ID!, limit: Int): [Receipt]
+  receiptsBySchool(schoolId: ID!, limit: Int): [Receipt]
+  receiptByNumber(schoolId: ID!, receiptNo: String!): Receipt
+  proofsByPayment(paymentTxnId: ID!, limit: Int): [ManualPaymentProof]
+  manualPaymentProofsBySchool(schoolId: ID!, limit: Int): [ManualPaymentProof]
+  announcementsBySchool(schoolId: ID!, limit: Int): [Announcement]
+  eventsBySchool(schoolId: ID!, limit: Int): [CalendarEvent]
+  studentsBySchool(schoolId: ID!, limit: Int): [Student]
+  parentsBySchool(schoolId: ID!, limit: Int): [ParentGuardian]
+  parentsByStudent(studentId: ID!, limit: Int): [StudentParentLink]
+  studentsByParent(parentId: ID!, limit: Int): [StudentParentLink]
+  enrollmentsByStudent(studentId: ID!, limit: Int): [Enrollment]
+  enrollmentsByTermClassGroup(termId: ID!, classGroupId: ID!, limit: Int): [Enrollment]
+  feeItemsBySchool(schoolId: ID!, limit: Int): [FeeItem]
+  providerConfigsBySchool(schoolId: ID!, limit: Int): [ProviderConfig]
+  plans(limit: Int): [Plan]
+  addOns(limit: Int): [AddOn]
+  templatesBySchool(schoolId: ID!, limit: Int): [MessageTemplate]
+  campaignsBySchool(schoolId: ID!, limit: Int): [MessageCampaign]
+  recipientsByCampaign(campaignId: ID!, limit: Int): [MessageRecipient]
+  recipientsByInvoice(invoiceId: ID!, limit: Int): [MessageRecipient]
+  reportCardsByStudentTerm(studentId: ID!, termId: ID!, limit: Int): [ReportCard]
+  defaultersByClass(termId: ID!, classGroupId: ID!, minDaysOverdue: Int = 0, minAmountDue: Float = 0): [Invoice]
+}
+
+# Root mutation (generic event publish for async jobs)
+type Mutation
+@auth(rules: [
+  { allow: groups, groups: ["APP_ADMIN", "SCHOOL_ADMIN", "BURSAR", "TEACHER"] }
+]) {
+  publishEvent(detailType: String!, source: String!, detail: AWSJSON!): Boolean
+  enqueueInvoicingJob(detail: AWSJSON!, detailType: String = "invoice.generated", source: String = "classpoint.billing"): Boolean
+  enqueueMessagingJob(detail: AWSJSON!, detailType: String = "messaging.requested", source: String = "classpoint.messaging"): Boolean
+  enqueueImportJob(detail: AWSJSON!, detailType: String = "import.requested", source: String = "classpoint.imports"): Boolean
+  createMessageTemplate(input: CreateMessageTemplateInput!): MessageTemplate
+  updateMessageTemplate(input: UpdateMessageTemplateInput!): MessageTemplate
+  deleteMessageTemplate(schoolId: ID!, id: ID!): Boolean
+  createPlan(input: CreatePlanInput!): Plan
+  updatePlan(input: UpdatePlanInput!): Plan
+  deletePlan(id: ID!): Boolean
+  createAddOn(input: CreateAddOnInput!): AddOn
+  updateAddOn(input: UpdateAddOnInput!): AddOn
+  deleteAddOn(id: ID!): Boolean
+  createProviderConfig(input: CreateProviderConfigInput!): ProviderConfig
+  updateProviderConfig(input: UpdateProviderConfigInput!): ProviderConfig
+  deleteProviderConfig(schoolId: ID!, id: ID!): Boolean
+  createSchoolSetupState(input: CreateSchoolSetupStateInput!): SchoolSetupState
+  updateSchoolSetupState(input: UpdateSchoolSetupStateInput!): SchoolSetupState
+  createMessageCampaign(input: CreateMessageCampaignInput!): MessageCampaign
+  updateMessageCampaignStatus(schoolId: ID!, id: ID!, status: CampaignStatus!, scheduledAt: AWSDateTime): MessageCampaign
+  emitAnnouncementNotification(schoolId: ID!, announcementId: ID!): Boolean
+  emitResultReadyNotification(schoolId: ID!, studentId: ID!, classGroupId: ID, termId: ID!): Boolean
+  publishAnnouncement(schoolId: ID!, announcementId: ID!, audience: AudienceType, classGroupId: ID, termId: ID): Boolean
+  publishResultReady(schoolId: ID!, studentId: ID!, classGroupId: ID, termId: ID!, reportCardId: ID): Boolean
+  createAttendanceSession(input: CreateAttendanceSessionInput!): AttendanceSession
+  createAttendanceEntry(input: CreateAttendanceEntryInput!): AttendanceEntry
+  createAssessment(input: CreateAssessmentInput!): Assessment
+  createScoreEntry(input: CreateScoreEntryInput!): ScoreEntry
+  updateScoreEntry(input: UpdateScoreEntryInput!): ScoreEntry
+  lockAssessment(schoolId: ID!, id: ID!): Assessment
+  unlockAssessment(schoolId: ID!, id: ID!): Assessment
+  sendDefaulterReminders(input: SendDefaulterRemindersInput!): Boolean
+  seedDefaultMessageTemplates(schoolId: ID!, channel: MessageChannel = WHATSAPP): Boolean
+  provisionSchool(input: ProvisionSchoolInput!): School
+  createSchoolProfile(input: CreateSchoolProfileInput!): SchoolProfile
+  updateSchoolProfile(input: UpdateSchoolProfileInput!): SchoolProfile
+  createSchoolHomePageSection(input: CreateSchoolHomePageSectionInput!): SchoolHomePageSection
+  updateSchoolHomePageSection(input: UpdateSchoolHomePageSectionInput!): SchoolHomePageSection
+  deleteSchoolHomePageSection(schoolId: ID!, id: ID!): Boolean
+  createAcademicSession(input: CreateAcademicSessionInput!): AcademicSession
+  updateAcademicSession(input: UpdateAcademicSessionInput!): AcademicSession
+  deleteAcademicSession(schoolId: ID!, id: ID!): Boolean
+  createTerm(input: CreateTermInput!): Term
+  updateTerm(input: UpdateTermInput!): Term
+  deleteTerm(schoolId: ID!, id: ID!): Boolean
+  createLevel(input: CreateLevelInput!): Level
+  updateLevel(input: UpdateLevelInput!): Level
+  deleteLevel(schoolId: ID!, id: ID!): Boolean
+  createClassYear(input: CreateClassYearInput!): ClassYear
+  updateClassYear(input: UpdateClassYearInput!): ClassYear
+  deleteClassYear(schoolId: ID!, id: ID!): Boolean
+  createClassArm(input: CreateClassArmInput!): ClassArm
+  updateClassArm(input: UpdateClassArmInput!): ClassArm
+  deleteClassArm(schoolId: ID!, id: ID!): Boolean
+  createClassGroup(input: CreateClassGroupInput!): ClassGroup
+  updateClassGroup(input: UpdateClassGroupInput!): ClassGroup
+  deleteClassGroup(schoolId: ID!, id: ID!): Boolean
+  createSubject(input: CreateSubjectInput!): Subject
+  updateSubject(input: UpdateSubjectInput!): Subject
+  deleteSubject(schoolId: ID!, id: ID!): Boolean
+  createClassSubject(input: CreateClassSubjectInput!): ClassSubject
+  updateClassSubject(input: UpdateClassSubjectInput!): ClassSubject
+  deleteClassSubject(schoolId: ID!, id: ID!): Boolean
+  createUser(input: CreateUserInput!): User
+  inviteStaffUser(input: InviteStaffUserInput!): User
+  createRole(input: CreateRoleInput!): Role
+  updateRole(input: UpdateRoleInput!): Role
+  deleteRole(input: DeleteRoleInput!): Boolean
+  assignUserRole(input: AssignUserRoleInput!): UserRole
+  removeUserRole(input: RemoveUserRoleInput!): Boolean
+  assignRolePermission(input: AssignRolePermissionInput!): RolePermission
+  removeRolePermission(input: RemoveRolePermissionInput!): Boolean
+  createImportJob(input: CreateImportJobInput!): ImportJob
+  createImportUploadUrl(input: CreateImportUploadUrlInput!): PresignedUpload
+  createImportErrorDownloadUrl(input: CreateImportErrorDownloadUrlInput!): PresignedDownload
+  createFeeItem(input: CreateFeeItemInput!): FeeItem
+  updateFeeItem(input: UpdateFeeItemInput!): FeeItem
+  deleteFeeItem(schoolId: ID!, id: ID!): Boolean
+  createFeeAdjustment(input: CreateFeeAdjustmentInput!): FeeAdjustment
+  createFeeSchedule(input: CreateFeeScheduleInput!): FeeSchedule
+  updateFeeSchedule(input: UpdateFeeScheduleInput!): FeeSchedule
+  deleteFeeSchedule(schoolId: ID!, id: ID!): Boolean
+  createFeeScheduleLine(input: CreateFeeScheduleLineInput!): FeeScheduleLine
+  updateFeeScheduleLine(input: UpdateFeeScheduleLineInput!): FeeScheduleLine
+  deleteFeeScheduleLine(schoolId: ID!, id: ID!): Boolean
+  generateClassInvoices(input: GenerateClassInvoicesInput!): GenerateClassInvoicesResult
+  createInvoice(input: CreateInvoiceInput!): Invoice
+  selectInvoiceOptionalItems(input: SelectInvoiceOptionalItemsInput!): Invoice
+  createPaymentIntent(input: CreatePaymentIntentInput!): PaymentIntent
+  createManualPaymentProofUploadUrl(input: CreateManualPaymentProofUploadUrlInput!): PresignedUpload
+  submitManualPaymentProof(input: SubmitManualPaymentProofInput!): ManualPaymentProof
+  reviewManualPaymentProof(input: ReviewManualPaymentProofInput!): ManualPaymentProof
+  createReceiptUploadUrl(input: CreateReceiptUploadUrlInput!): PresignedUpload
+  attachReceiptUrl(input: AttachReceiptUrlInput!): Receipt
+  createReceiptDownloadUrl(input: CreateReceiptDownloadUrlInput!): PresignedDownload
+}
+
+input ProvisionSchoolInput {
+  name: String!
+  slug: String!
+  primaryCity: String
+  address: String
+  city: String
+  state: String
+  contactEmail: AWSEmail
+  contactPhone: AWSPhone
+}
+
+input CreateSchoolProfileInput {
+  schoolId: ID!
+  address: String
+  city: String
+  state: String
+  contactEmail: AWSEmail
+  contactPhone: AWSPhone
+  logoUrl: String
+  heroImageUrl: String
+  themeJson: AWSJSON
+}
+
+input CreateSchoolSetupStateInput {
+  id: ID!
+  schoolId: ID!
+  stateJson: AWSJSON!
+}
+
+input UpdateSchoolSetupStateInput {
+  id: ID!
+  schoolId: ID!
+  stateJson: AWSJSON!
+}
+
+input UpdateSchoolProfileInput {
+  schoolId: ID!
+  id: ID!
+  address: String
+  city: String
+  state: String
+  contactEmail: AWSEmail
+  contactPhone: AWSPhone
+  logoUrl: String
+  heroImageUrl: String
+  themeJson: AWSJSON
+}
+
+input CreateSchoolHomePageSectionInput {
+  schoolId: ID!
+  type: String!
+  contentJson: AWSJSON!
+  sortOrder: Int!
+  isEnabled: Boolean = true
+}
+
+input UpdateSchoolHomePageSectionInput {
+  schoolId: ID!
+  id: ID!
+  type: String!
+  contentJson: AWSJSON!
+  sortOrder: Int!
+  isEnabled: Boolean!
+}
+
+input CreateAcademicSessionInput {
+  schoolId: ID!
+  name: String!
+  startDate: AWSDate!
+  endDate: AWSDate!
+  status: String!
+}
+
+input UpdateAcademicSessionInput {
+  schoolId: ID!
+  id: ID!
+  name: String!
+  startDate: AWSDate!
+  endDate: AWSDate!
+  status: String!
+}
+
+input CreateTermInput {
+  schoolId: ID!
+  sessionId: ID!
+  name: String!
+  startDate: AWSDate!
+  endDate: AWSDate!
+  status: String!
+}
+
+input UpdateTermInput {
+  schoolId: ID!
+  id: ID!
+  sessionId: ID!
+  name: String!
+  startDate: AWSDate!
+  endDate: AWSDate!
+  status: String!
+}
+
+input CreateLevelInput {
+  schoolId: ID!
+  type: String!
+  name: String!
+  sortOrder: Int!
+}
+
+input UpdateLevelInput {
+  schoolId: ID!
+  id: ID!
+  type: String!
+  name: String!
+  sortOrder: Int!
+}
+
+input CreateClassYearInput {
+  schoolId: ID!
+  levelId: ID!
+  name: String!
+  sortOrder: Int!
+}
+
+input UpdateClassYearInput {
+  schoolId: ID!
+  id: ID!
+  levelId: ID!
+  name: String!
+  sortOrder: Int!
+}
+
+input CreateClassArmInput {
+  schoolId: ID!
+  name: String!
+}
+
+input UpdateClassArmInput {
+  schoolId: ID!
+  id: ID!
+  name: String!
+}
+
+input CreateClassGroupInput {
+  schoolId: ID!
+  classYearId: ID!
+  classArmId: ID
+  displayName: String!
+  classTeacherUserId: ID
+}
+
+input CreateUserInput {
+  schoolId: ID!
+  name: String!
+  email: AWSEmail
+  phone: AWSPhone
+  userType: UserType!
+  status: UserStatus = INVITED
+}
+
+input InviteStaffUserInput {
+  schoolId: ID!
+  name: String!
+  email: AWSEmail
+  phone: AWSPhone
+  userType: UserType! # SCHOOL_ADMIN/STAFF/TEACHER/BURSAR
+  tempPassword: String
+}
+
+input UpdateClassGroupInput {
+  schoolId: ID!
+  id: ID!
+  classYearId: ID!
+  classArmId: ID
+  displayName: String!
+  classTeacherUserId: ID
+}
+
+input CreateSubjectInput {
+  schoolId: ID!
+  name: String!
+  code: String
+  levelType: String
+}
+
+input UpdateSubjectInput {
+  schoolId: ID!
+  id: ID!
+  name: String!
+  code: String
+  levelType: String
+}
+
+input CreateClassSubjectInput {
+  schoolId: ID!
+  classYearId: ID!
+  subjectId: ID!
+  isCompulsory: Boolean!
+}
+
+input UpdateClassSubjectInput {
+  schoolId: ID!
+  id: ID!
+  classYearId: ID!
+  subjectId: ID!
+  isCompulsory: Boolean!
+}
+
+input CreateRoleInput {
+  schoolId: ID!
+  name: String!
+  createdByUserId: ID
+}
+
+input UpdateRoleInput {
+  schoolId: ID!
+  id: ID!
+  name: String!
+  updatedByUserId: ID
+}
+
+input DeleteRoleInput {
+  schoolId: ID!
+  id: ID!
+  deletedByUserId: ID
+}
+
+input AssignUserRoleInput {
+  schoolId: ID!
+  userId: ID!
+  roleId: ID!
+  assignedByUserId: ID
+}
+
+input RemoveUserRoleInput {
+  schoolId: ID!
+  userId: ID!
+  roleId: ID!
+  removedByUserId: ID
+}
+
+input AssignRolePermissionInput {
+  schoolId: ID!
+  roleId: ID!
+  permissionCode: String!
+  assignedByUserId: ID
+}
+
+input RemoveRolePermissionInput {
+  schoolId: ID!
+  roleId: ID!
+  permissionCode: String!
+  removedByUserId: ID
+}
+
+input CreateImportJobInput {
+  schoolId: ID!
+  bucket: String!
+  key: String!
+}
+
+input CreateImportUploadUrlInput {
+  schoolId: ID!
+  fileName: String!
+  contentType: String = "text/csv"
+}
+
+input CreateImportErrorDownloadUrlInput {
+  schoolId: ID!
+  key: String!
+}
+
+type PresignedUpload {
+  uploadUrl: String!
+  bucket: String!
+  key: String!
+  expiresIn: Int!
+}
+
+type PresignedDownload {
+  downloadUrl: String!
+  bucket: String!
+  key: String!
+  expiresIn: Int!
+}
+
+input CreateFeeItemInput {
+  schoolId: ID!
+  name: String!
+  description: String
+  category: FeeCategory!
+  isOptional: Boolean!
+  isActive: Boolean = true
+}
+
+input UpdateFeeItemInput {
+  schoolId: ID!
+  id: ID!
+  name: String!
+  description: String
+  category: FeeCategory!
+  isOptional: Boolean!
+  isActive: Boolean!
+}
+
+input CreatePlanInput {
+  code: String!
+  name: String!
+  description: String
+  billingCycle: String!
+  basePrice: Float!
+  currency: String!
+  status: String!
+}
+
+input UpdatePlanInput {
+  id: ID!
+  code: String!
+  name: String!
+  description: String
+  billingCycle: String!
+  basePrice: Float!
+  currency: String!
+  status: String!
+}
+
+input CreateAddOnInput {
+  code: String!
+  name: String!
+  description: String
+  pricingModel: String!
+  price: Float!
+  status: String!
+}
+
+input UpdateAddOnInput {
+  id: ID!
+  code: String!
+  name: String!
+  description: String
+  pricingModel: String!
+  price: Float!
+  status: String!
+}
+
+input CreateProviderConfigInput {
+  schoolId: ID!
+  type: String!
+  providerName: String!
+  configJson: AWSJSON!
+  status: String!
+}
+
+input UpdateProviderConfigInput {
+  schoolId: ID!
+  id: ID!
+  type: String!
+  providerName: String!
+  configJson: AWSJSON!
+  status: String!
+}
+
+input CreateAttendanceSessionInput {
+  schoolId: ID!
+  termId: ID!
+  classGroupId: ID!
+  date: AWSDate!
+  takenByUserId: ID!
+}
+
+input CreateAttendanceEntryInput {
+  schoolId: ID!
+  attendanceSessionId: ID!
+  studentId: ID!
+  status: AttendanceStatus!
+  notes: String
+}
+
+input CreateAssessmentInput {
+  schoolId: ID!
+  termId: ID!
+  classGroupId: ID!
+  subjectId: ID!
+  policyId: ID!
+  title: String!
+  status: AssessmentStatus = OPEN
+}
+
+input CreateScoreEntryInput {
+  schoolId: ID!
+  assessmentId: ID!
+  studentId: ID!
+  scoresJson: AWSJSON!
+  totalScore: Float
+  grade: String
+  enteredByUserId: ID!
+  enteredAt: AWSDateTime!
+}
+
+input UpdateScoreEntryInput {
+  schoolId: ID!
+  id: ID!
+  assessmentId: ID!
+  studentId: ID!
+  scoresJson: AWSJSON
+  totalScore: Float
+  grade: String
+}
+
+input SendDefaulterRemindersInput {
+  schoolId: ID!
+  termId: ID
+  classGroupId: ID
+  invoiceIds: [ID!]!
+  templateType: String = "OVERDUE_NOTICE"
+  source: String = "classpoint.collections"
+  detailType: String = "messaging.requested"
+  retryOnFail: Boolean = true
+}
+
+input CreateFeeAdjustmentInput {
+  schoolId: ID!
+  invoiceId: ID!
+  type: AdjustmentType!
+  amount: Float!
+  reason: String
+  createdByUserId: ID!
+  approvedByUserId: ID
+  approvedAt: AWSDateTime
+}
+
+input CreateFeeScheduleInput {
+  schoolId: ID!
+  sessionId: ID!
+  termId: ID!
+  classYearId: ID!
+  classGroupId: ID
+  name: String!
+  currency: String!
+  isActive: Boolean = true
+}
+
+input UpdateFeeScheduleInput {
+  schoolId: ID!
+  id: ID!
+  sessionId: ID!
+  termId: ID!
+  classYearId: ID!
+  classGroupId: ID
+  name: String!
+  currency: String!
+  isActive: Boolean!
+}
+
+input CreateFeeScheduleLineInput {
+  schoolId: ID!
+  feeScheduleId: ID!
+  feeItemId: ID!
+  amount: Float!
+  isOptionalOverride: Boolean
+  dueDate: AWSDate
+  sortOrder: Int!
+}
+
+input UpdateFeeScheduleLineInput {
+  schoolId: ID!
+  id: ID!
+  feeScheduleId: ID!
+  feeItemId: ID!
+  amount: Float!
+  isOptionalOverride: Boolean
+  dueDate: AWSDate
+  sortOrder: Int!
+}
+
+input GenerateClassInvoicesInput {
+  schoolId: ID!
+  sessionId: ID
+  termId: ID!
+  classGroupId: ID!
+  feeScheduleId: ID!
+  dueAt: AWSDateTime
+  limit: Int
+  skipDuplicates: Boolean = true
+}
+
+input CreateInvoiceInput {
+  schoolId: ID!
+  studentId: ID!
+  enrollmentId: ID
+  sessionId: ID!
+  termId: ID!
+  classGroupId: ID
+  feeScheduleId: ID
+  dueAt: AWSDateTime
+}
+
+input SelectInvoiceOptionalItemsInput {
+  schoolId: ID!
+  invoiceId: ID!
+  selectedLineIds: [ID!]!
+}
+
+input CreatePaymentIntentInput {
+  schoolId: ID!
+  invoiceId: ID!
+  payerParentId: ID
+  provider: PaymentProvider!
+  amount: Float!
+  currency: String!
+  externalReference: String
+}
+
+input CreateManualPaymentProofUploadUrlInput {
+  schoolId: ID!
+  fileName: String!
+  contentType: String = "image/jpeg"
+}
+
+input CreateReceiptUploadUrlInput {
+  schoolId: ID!
+  receiptNo: String!
+  fileName: String
+  contentType: String = "application/pdf"
+}
+
+input CreateReceiptDownloadUrlInput {
+  schoolId: ID!
+  receiptNo: String!
+}
+
+input SubmitManualPaymentProofInput {
+  schoolId: ID!
+  invoiceId: ID!
+  amount: Float!
+  currency: String!
+  fileUrl: String!
+  submittedByParentId: ID
+}
+
+input ReviewManualPaymentProofInput {
+  schoolId: ID!
+  proofId: ID!
+  reviewerUserId: ID!
+  status: ProofStatus!
+  notes: String
+}
+
+input AttachReceiptUrlInput {
+  schoolId: ID!
+  receiptNo: String!
+  receiptUrl: String!
+  receiptBucket: String!
+  receiptKey: String!
+}
+
+input CreateMessageTemplateInput {
+  schoolId: ID!
+  type: String!
+  channel: MessageChannel!
+  subject: String
+  body: String!
+  variablesJson: AWSJSON
+  isActive: Boolean = true
+}
+
+input UpdateMessageTemplateInput {
+  schoolId: ID!
+  id: ID!
+  type: String
+  channel: MessageChannel
+  subject: String
+  body: String
+  variablesJson: AWSJSON
+  isActive: Boolean
+}
+
+input CreateMessageCampaignInput {
+  schoolId: ID!
+  name: String!
+  type: String!
+  channel: MessageChannel!
+  templateId: ID
+  createdByUserId: ID!
+  scheduledAt: AWSDateTime
+  audienceJson: AWSJSON
+}

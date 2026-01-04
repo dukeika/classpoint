@@ -1,0 +1,12 @@
+{
+  "rules": [
+    "defined-types-are-used"
+  ],
+  "customDirectives": [
+    "model",
+    "auth",
+    "index",
+    "hasOne",
+    "hasMany"
+  ]
+}

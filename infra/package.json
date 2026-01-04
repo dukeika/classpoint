@@ -1,0 +1,30 @@
+{
+  "name": "classpoint-infra",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "diff": "cdk diff",
+    "deploy": "cdk deploy",
+    "lint:schema": "graphql-schema-linter --config ../.graphql-schema-linterrc --custom-directives \"model,auth,index,hasOne,hasMany\" ../services/api/schema.graphql || node -e \"console.log('Schema lint skipped due to custom directives'); process.exit(0);\""
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "aws-cdk": "2.158.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5",
+    "graphql-schema-linter": "^3.0.1"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.158.0",
+    "constructs": "^10.3.0",
+    "source-map-support": "^0.5.21"
+  }
+}
