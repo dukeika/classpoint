@@ -35,3 +35,6 @@ tmp_*.html
 .DS_Store
 Thumbs.db
 '
+classpoint-secrets.zip.enc
+decrypt-secrets.ps1
+DECRYPT_SECRETS.md

@@ -2,6 +2,12 @@
 
 This is the working checklist for getting ClassPoint to full production readiness.
 
+## Current state notes
+- Dev is live on `classpoint.ng` with HQ at `app.classpoint.ng` and tenants at `{slug}.classpoint.ng`.
+- Hosted UI auth is wired to `auth.classpoint.ng` with tenant callbacks.
+- OpenNext SSR deploys via CloudFront; WAF + rate limits enabled.
+- Known issue: `/platform` returns 404 after deploy (route exists in repo).
+
 ## Code verification gaps (from repo scan)
 - [x] Remove all token/debug UI surfaces still rendering `token-box` inputs in admin/portal/profile/setup pages.
 - [x] Replace `/s/[slug]` public pages with subdomain routing; remove `/s` links from the UI.
@@ -11,13 +17,13 @@ This is the working checklist for getting ClassPoint to full production readines
 - [x] Upgrade import CSV parsing to handle quoted commas/escapes.
 - [ ] Add payment provider API verification/replay/refund handling (webhook validates signature only).
 - [ ] Implement invoice/receipt PDF generation (only presigned upload/download helpers exist).
-- [ ] Platform admin console app is missing (docs mention `apps/admin` + `/platform/*` routes; only `apps/web` exists).
+- [ ] Platform admin console is stub only; `/platform` route still 404 after deploy.
 - [x] Setup wizard fees line persistence bug: fee schedule lines show success but do not persist across refresh.
 
 ## Platform, auth, and tenancy
-- [ ] Lock prod-grade auth: Cognito Hosted UI/OIDC, secure cookies, refresh flow; remove demo token tooling and all token/debug UI.
-- [ ] Implement subdomain routing: `{slug}.classpoint.ng` host routing (edge or middleware) and canonical redirects; remove `/s/[slug]` dependency.
-- [ ] Finalize DNS + certs: Route 53 wildcard record, ACM certs, CloudFront/ALB bindings, custom domain strategy.
+- [x] Lock prod-grade auth: Cognito Hosted UI/OIDC, secure cookies, refresh flow; remove demo token tooling and all token/debug UI.
+- [x] Implement subdomain routing: `{slug}.classpoint.ng` host routing (edge or middleware) and canonical redirects; remove `/s/[slug]` dependency.
+- [x] Finalize DNS + certs: Route 53 wildcard record, ACM certs, CloudFront bindings, custom domain strategy.
 - [ ] Harden tenant isolation: enforce `schoolId` in every resolver/service; add automated tenant-isolation tests and negative cases.
 - [ ] Implement RBAC server-side: enforce permission codes on sensitive mutations/queries (fees, refunds, roles, results, imports).
 

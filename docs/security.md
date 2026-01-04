@@ -8,6 +8,11 @@ Guardrails (from build guidelines):
 - Secrets: Secrets Manager/SSM only; no secrets in code, clients, or logs.
 - Data protection: TLS everywhere; KMS for DynamoDB/S3/Secrets; WAF at edge; rate limits on auth/payment endpoints.
 
+Current status (dev):
+- CloudFront WAF is enabled with baseline managed rules + rate limits.
+- Tenant isolation smoke tests exist (`scripts/tenant-isolation-smoke.js`); negative cases still in progress.
+- RBAC guards are partially enforced in resolvers; remaining sensitive paths pending.
+
 Next to flesh out:
 - Threat model and abuse cases (broken tenant isolation, auth bypass, payment replay, messaging abuse).
 - IAM roles/policies for CDK deploy, app runtime (Lambdas), and least-privilege bucket/table access.

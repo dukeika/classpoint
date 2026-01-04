@@ -19,9 +19,11 @@ Status labels:
 - [in-progress] Add tenant isolation automated tests (positive + negative cases).
 - [done] Define CloudFront invalidation + cache versioning strategy for releases.
 - [done] Add WAF + rate limiting rules on the edge (baseline + tenant-specific).
+- [blocked] Fix `/platform` 404 on `app.classpoint.ng` after deploy (route exists but missing in served bundle).
 
 ## 2) Platform Admin Console
-- [not-started] Decide on HQ console location (`apps/admin` vs `/platform` in `apps/web`).
+- [done] Decide on HQ console location (`/platform` in `apps/web`).
+- [in-progress] HQ console stub at `/platform` (apps/web).
 - [not-started] Implement core HQ flows: schools, plans/add-ons, providers, support, audit.
 - [not-started] Implement tenant provisioning workflow with retry safety.
 

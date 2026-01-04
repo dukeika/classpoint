@@ -1,7 +1,7 @@
 # Architecture
 
 ## Stack decisions (locked)
-- Frontend: Next.js (apps/web + apps/admin) on CloudFront + S3.
+- Frontend: Next.js (apps/web) SSR/Edge via OpenNext on CloudFront + S3.
 - Auth: Cognito with custom `schoolId` claim in tokens and groups for roles.
 - API: AppSync GraphQL with DynamoDB backing tables; Lambda resolvers where needed; EventBridge/SQS for async flows.
 - Storage: S3 (logos/uploads/receipts) with block-public-access and KMS; presigned upload for clients.
@@ -17,6 +17,8 @@ Users (Parents/Staff/HQ)
 Route 53
    |
 CloudFront + WAF  --+--> S3 (Next.js static assets)
+                    |
+                    +--> OpenNext SSR (Lambda) for dynamic routes
                     |
                     +--> AppSync (GraphQL)
                     |        |
@@ -72,7 +74,7 @@ Alarms on failure rate; retries with backoff
 
 ## Logical component layout (text)
 - Edge: Route 53 -> CloudFront (+WAF) -> S3 origin (Next.js static) + Lambda@Edge/CloudFront Functions (subdomain routing, security headers).
-- Until DNS is ready, use the CloudFront distribution default domain for web/API; later attach ACM cert + Route 53 records for `*.classpoint.ng`.
+- DNS is live for `classpoint.ng` with `app.classpoint.ng` for HQ and `{slug}.classpoint.ng` for tenants.
 - Auth: Cognito User Pool (groups: APP_ADMIN, SCHOOL_ADMIN, BURSAR, TEACHER, PARENT) + custom `schoolId` claim for tenant users.
 - API: AppSync GraphQL (schema in services/api) -> direct DynamoDB resolvers for CRUD paths; Lambda resolvers for composite/secure flows; uses Cognito auth.
 - Data: DynamoDB tables per model (Amplify-style) with GSIs for access patterns; all items keyed by `schoolId`.

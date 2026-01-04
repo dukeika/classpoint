@@ -2,7 +2,7 @@
 
 Environments:
 - dev, stage, prod (separate accounts). Deploy via CI/CD; prod requires manual approval.
-- Default host until DNS: use CloudFront distribution domain output; when domains are ready, attach ACM cert + Route 53 records to CloudFront/AppSync/API Gateway.
+- DNS is live for `classpoint.ng`. HQ uses `app.classpoint.ng`; tenants use `{slug}.classpoint.ng`.
 
 Stacks (dev example, same naming per env):
 - `ClasspointStack-<env>`: core data plane (AppSync, DynamoDB, Cognito, S3, EventBridge, base Lambdas).
@@ -19,11 +19,11 @@ Core commands (infra):
 - `cd infra; npm run deploy -- --profile <profile> -c env=<env>` – deploy target env (pipeline-owned role in prod).
 - `cd infra; npm run lint:schema` – schema lint (allows custom directives, warnings only).
 
-Frontend deploy (static export):
-- Ensure `apps/web/.env.local` sets `NEXT_PUBLIC_APPSYNC_URL` (and `NEXT_PUBLIC_APPSYNC_PUBLIC_URL` if needed) so the static build talks directly to AppSync instead of `/api/graphql`.
-- Build/export: `cd apps/web && npm run build` (outputs to `apps/web/out`).
-- Upload `apps/web/out` to the `FrontendBucketName` output from `ClasspointServicesStack-<env>`.
-- Invalidate the CloudFront distribution (output `CloudFrontDomain`) after upload.
+Frontend deploy (SSR/Edge via OpenNext):
+- Build: `cd apps/web && npm run build:ssr` (produces `.open-next`).
+- Deploy: `npx cdk deploy ClasspointWebStack-<env> --profile <profile>`.
+- Windows note: OpenNext build fails on Windows `esbuild` in this repo; run the build inside WSL, then deploy from Windows.
+- CloudFront invalidations for `_next/*` and `/BUILD_ID` are created on deploy.
 
 Deploy / rollback guardrails:
 - Deploy from CI/CD only; prod requires a manual approval gate.
@@ -42,7 +42,7 @@ Upcoming entries:
 - Backups/restores: DynamoDB PITR, S3 versioning recovery steps.
 - Incident steps: rollbacks (previous artifact/feature flags), log locations, alarms to watch.
 - Edge/Async: CloudFront domain output, CloudFront logs bucket, EventBridge bus name, SQS queue URLs (in stack outputs). Workers consume invoicing/messaging queues; import worker is triggered directly by an EventBridge rule.
-- WAF: attached to CloudFront in stage/prod (enabled in dev once the account allows CloudFront-scoped WAF).
+- WAF: attached to CloudFront (enabled in dev) with baseline managed rules + rate limits.
 - Payment webhook endpoint: exposed via API Gateway `payments/webhook` to the payment webhook Lambda (signature verification in code).
 - Secrets: payment webhook secret expected in Secrets Manager at `classpoint/{env}/payments/webhook`; messaging providers under `classpoint/{env}/providers/<provider>`.
 - Alarms: SNS topic output `InfraAlarmsTopicArn` receives CloudFront 4xx/5xx, API Gateway 5xx/latency, webhook/worker errors, queue depth/age, DLQ depth, and canary failures.
