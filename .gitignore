@@ -36,5 +36,3 @@ tmp_*.html
 Thumbs.db
 '
 classpoint-secrets.zip.enc
-decrypt-secrets.ps1
-DECRYPT_SECRETS.md
