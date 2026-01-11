@@ -48,7 +48,6 @@ const servicesStack = new ClasspointServicesStack(app, `ClasspointServicesStack-
   envName: targetEnv,
   eventBus: coreStack.eventBus,
   uploadsBucket: coreStack.uploadsBucket,
-  awsSdkLayer: coreStack.awsSdkLayer,
   userPoolId: coreStack.userPoolId,
   tables: coreStack.tables,
   env: {

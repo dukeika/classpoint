@@ -33,6 +33,12 @@ const tenantGuard = `
     #end
   #end
 `;
+    const staffGuard = tenantGuard + `
+  #set($groups = $util.defaultIfNull($ctx.identity.claims.get("cognito:groups"), []))
+  #if(!$groups.contains("APP_ADMIN") && !$groups.contains("SCHOOL_ADMIN") && !$groups.contains("BURSAR") && !$groups.contains("TEACHER"))
+    $util.unauthorized()
+  #end
+`;
     const resultsGuard = tenantGuard + `
   #set($groups = $util.defaultIfNull($ctx.identity.claims.get("cognito:groups"), []))
   #if(!$groups.contains("APP_ADMIN") && !$groups.contains("SCHOOL_ADMIN") && !$groups.contains("TEACHER"))
@@ -45,7 +51,7 @@ const tenantGuard = `
       name: `${appsyncFunctionNamePrefix}_updateAnnouncement`,
       dataSourceName: 'AnnouncementsDS',
       functionVersion: '2018-05-29',
-      requestMappingTemplate: tenantGuard + `{
+      requestMappingTemplate: staffGuard + `{
   "version": "2018-05-29",
   "operation": "UpdateItem",
   "key": {
@@ -65,7 +71,7 @@ const tenantGuard = `
       name: `${appsyncFunctionNamePrefix}_publishAnnouncementEvent`,
       dataSourceName: 'EventPublisherDS',
       functionVersion: '2018-05-29',
-      requestMappingTemplate: tenantGuard + `{
+      requestMappingTemplate: staffGuard + `{
   "version": "2018-05-29",
   "operation": "Invoke",
   "payload": {
@@ -91,7 +97,7 @@ const tenantGuard = `
       pipelineConfig: {
         functions: [updateAnnouncementFn.attrFunctionId, publishAnnouncementEventFn.attrFunctionId]
       },
-      requestMappingTemplate: tenantGuard + '{}',
+      requestMappingTemplate: staffGuard + '{}',
       responseMappingTemplate: '$util.toJson(true)'
     });
 

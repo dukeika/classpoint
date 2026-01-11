@@ -43,13 +43,12 @@ export function middleware(request: NextRequest) {
   const host = getRequestHost(request);
   const pathname = request.nextUrl.pathname;
   const proto = request.headers.get("x-forwarded-proto") || (isLocalhost(host) ? "http" : "https");
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-classpoint-host", host);
 
   if (!host) return NextResponse.next();
 
-  if (ROOT_HOSTS.has(host)) {
-    const target = `${proto}://${HQ_HOST}${pathname}${request.nextUrl.search}`;
-    return NextResponse.redirect(target, 307);
-  }
+  const isRootHost = ROOT_HOSTS.has(host);
 
   const tenantSlug = getTenantSlug(host);
   const isHq = host === HQ_HOST;
@@ -60,6 +59,11 @@ export function middleware(request: NextRequest) {
     return new NextResponse("Not Found", { status: 404 });
   }
 
+  if (isRootHost && (isTenantOnlyPath(pathname) || isHqOnlyPath(pathname))) {
+    const target = `${proto}://${HQ_HOST}${pathname}${request.nextUrl.search}`;
+    return NextResponse.redirect(target, 307);
+  }
+
   if (isHq) {
     if (isTenantOnlyPath(pathname)) {
       const target = `${proto}://${HQ_HOST}/platform`;
@@ -68,6 +72,18 @@ export function middleware(request: NextRequest) {
   }
 
   if (isTenantHost) {
+    if (pathname === "/") {
+      const target = request.nextUrl.clone();
+      target.pathname = `/tenant/${tenantSlug}`;
+      const response = NextResponse.rewrite(target, {
+        request: {
+          headers: requestHeaders
+        }
+      });
+      response.headers.set("x-tenant-slug", tenantSlug);
+      response.headers.set("x-host-type", "tenant");
+      return response;
+    }
     if (isHqOnlyPath(pathname)) {
       const target = `${proto}://${host}/`;
       return NextResponse.redirect(target, 307);
@@ -78,7 +94,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const response = NextResponse.next();
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders
+    }
+  });
   if (isTenantHost) {
     response.headers.set("x-tenant-slug", tenantSlug);
     response.headers.set("x-host-type", "tenant");

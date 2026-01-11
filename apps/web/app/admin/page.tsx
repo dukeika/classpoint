@@ -66,6 +66,7 @@ export default function AdminOverviewPage() {
   const primaryAction = setupComplete
     ? { label: "Generate invoices", href: "/admin/invoices" }
     : { label: "Continue setup", href: "/admin/setup" };
+  const progressStyle = { ["--progress" as string]: `${setupProgress}%` };
 
   const kpis = useMemo(
     () => [
@@ -129,41 +130,81 @@ export default function AdminOverviewPage() {
   ];
 
   return (
-    <main className="dashboard-page">
-      <div className="page-header modern-header">
-        <div>
+    <main className="dashboard-page admin-dashboard">
+      <section className="admin-header">
+        <div className="admin-header-main">
           <div className="breadcrumb">Admin / Overview</div>
           <h1>School Admin Dashboard</h1>
           <p className="muted">Track collections, tasks, and actions that need attention.</p>
+          <div className="hero-meta">
+            <span className="status-pill status-in_progress">Term live</span>
+            <span className="hero-note">Last sync: 2 mins ago</span>
+          </div>
+          <div className="admin-header-actions">
+            <a className="button primary" href={primaryAction.href}>
+              {primaryAction.label}
+            </a>
+            <a className="ghost-button" href="/admin/setup">
+              Setup checklist
+            </a>
+          </div>
         </div>
-        <a className="button primary" href={primaryAction.href}>
-          {primaryAction.label}
-        </a>
-      </div>
+        <div className="admin-header-card">
+          <div>
+            <small className="muted">Term health</small>
+            <h2>On track</h2>
+          </div>
+          <div className="admin-score-grid">
+            <div>
+              <strong>86%</strong>
+              <span>Fee coverage</span>
+            </div>
+            <div>
+              <strong>92%</strong>
+              <span>Attendance rate</span>
+            </div>
+            <div>
+              <strong>7</strong>
+              <span>Pending approvals</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {!setupComplete && (
-        <div className="card setup-progress-card">
-          <div>
-            <span className="status-pill status-in_progress">Setup in progress</span>
-            <h3>Setup {setupProgress}% complete</h3>
-            <p className="muted">Next step: {nextStep.label}</p>
+        <section className="card setup-progress-card">
+          <div className="setup-progress">
+            <div className="progress-ring" style={progressStyle}>
+              <span>{setupProgress}%</span>
+              <small>Setup</small>
+            </div>
+            <div>
+              <span className="status-pill status-in_progress">Setup in progress</span>
+              <h3>Finish onboarding to unlock billing</h3>
+              <p className="muted">Next step: {nextStep.label}</p>
+            </div>
           </div>
           <div className="progress-bar">
             <span style={{ width: `${setupProgress}%` }} />
           </div>
-          <a className="button" href={`/admin/setup`}>
-            Continue setup
-          </a>
-        </div>
+          <div className="setup-actions">
+            <a className="button" href={`/admin/setup`}>
+              Continue setup
+            </a>
+            <a className="ghost-button" href={`/admin/setup`}>
+              Review steps
+            </a>
+          </div>
+        </section>
       )}
 
-      <div className="kpi-grid">
+      <div className="kpi-grid admin-kpi-grid">
         {kpis.map((kpi) => (
           <KpiCard key={kpi.label} {...kpi} />
         ))}
       </div>
 
-      <div className="dashboard-columns">
+      <div className="dashboard-columns admin-columns">
         <section className="card">
           <div className="card-header">
             <h3>Work queue</h3>
@@ -187,7 +228,7 @@ export default function AdminOverviewPage() {
           </div>
         </section>
 
-        <section className="card">
+        <section className="card admin-quick-card">
           <div className="card-header">
             <h3>Quick actions</h3>
             <small className="muted">Shortcuts to the most used workflows.</small>
@@ -202,7 +243,7 @@ export default function AdminOverviewPage() {
         </section>
       </div>
 
-      <div className="dashboard-columns">
+      <div className="dashboard-columns admin-columns">
         <section className="card">
           <div className="card-header">
             <h3>Recent activity</h3>

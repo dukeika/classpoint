@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { decodeToken } from "./auth-utils";
 import type { NavSection } from "./navigation";
 
@@ -48,6 +48,8 @@ export default function DashboardShell({ sections, children, brandName = "ClassP
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const [profile, setProfile] = useState({
     name: "User",
     role: "Staff",
@@ -85,6 +87,17 @@ export default function DashboardShell({ sections, children, brandName = "ClassP
   useEffect(() => {
     window.localStorage.setItem("cp.favorites", JSON.stringify(favorites));
   }, [favorites]);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const handleClick = (event: MouseEvent) => {
+      if (!profileMenuRef.current) return;
+      if (profileMenuRef.current.contains(event.target as Node)) return;
+      setProfileMenuOpen(false);
+    };
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [profileMenuOpen]);
 
   const allowedSections = useMemo(() => {
     if (!profile.groups.length) return sections;
@@ -205,12 +218,30 @@ export default function DashboardShell({ sections, children, brandName = "ClassP
             <button className="icon-button" type="button" aria-label="Quick actions">
               +
             </button>
-            <div className="profile">
-              <div className="avatar">{initialsForName(profile.name)}</div>
-              <div className="profile-meta">
-                <strong>{profile.name}</strong>
-                <span>{profile.role}</span>
-              </div>
+            <div className="profile-menu" ref={profileMenuRef}>
+              <button
+                className="profile-button"
+                type="button"
+                onClick={() => setProfileMenuOpen((prev) => !prev)}
+                aria-haspopup="menu"
+                aria-expanded={profileMenuOpen}
+              >
+                <div className="avatar">{initialsForName(profile.name)}</div>
+                <div className="profile-meta">
+                  <strong>{profile.name}</strong>
+                  <span>{profile.role}</span>
+                </div>
+              </button>
+              {profileMenuOpen && (
+                <div className="profile-dropdown" role="menu">
+                  <Link href="/profile" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                    Profile settings
+                  </Link>
+                  <Link href="/auth/logout" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                    Sign out
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </header>

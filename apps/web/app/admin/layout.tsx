@@ -9,7 +9,7 @@ import { StaffAuthGate, StaffAuthProvider, useStaffAuth } from "../components/st
 function AdminAccessGate({ children }: { children: ReactNode }) {
   const { groups, loading } = useStaffAuth();
   const isAdmin = useMemo(
-    () => groups.includes("APP_ADMIN") || groups.includes("SCHOOL_ADMIN"),
+    () => groups.includes("APP_ADMIN") || groups.includes("SCHOOL_ADMIN") || groups.includes("BURSAR"),
     [groups]
   );
 
@@ -28,7 +28,15 @@ function AdminAccessGate({ children }: { children: ReactNode }) {
       <section className="shell">
         <div className="card">
           <h2>Admin access required</h2>
-          <p>Sign in with an admin account to access this section.</p>
+          <p>Sign in with an admin or bursar account to access this section.</p>
+          <div className="cta-row">
+            <a className="button secondary" href="/login?next=/admin">
+              Go to login
+            </a>
+            <a className="ghost-button" href="/auth/logout">
+              Sign out and try again
+            </a>
+          </div>
         </div>
       </section>
     );

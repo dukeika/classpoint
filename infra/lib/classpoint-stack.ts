@@ -1514,7 +1514,7 @@ exports.handler = async (event) => {
     ds.schoolProfiles.createResolver('CreateSchoolProfile', {
       typeName: 'Mutation',
       fieldName: 'createSchoolProfile',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `{
+      requestMappingTemplate: MappingTemplate.fromString(adminGuard + `{
   "version": "2018-05-29",
   "operation": "PutItem",
   "key": {
@@ -1539,7 +1539,7 @@ exports.handler = async (event) => {
     ds.schoolProfiles.createResolver('UpdateSchoolProfile', {
       typeName: 'Mutation',
       fieldName: 'updateSchoolProfile',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `{
+      requestMappingTemplate: MappingTemplate.fromString(adminGuard + `{
   "version": "2018-05-29",
   "operation": "UpdateItem",
   "key": {
@@ -1567,7 +1567,7 @@ exports.handler = async (event) => {
     ds.schoolHomePageSections.createResolver('CreateSchoolHomePageSection', {
       typeName: 'Mutation',
       fieldName: 'createSchoolHomePageSection',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `{
+      requestMappingTemplate: MappingTemplate.fromString(adminGuard + `{
   "version": "2018-05-29",
   "operation": "PutItem",
   "key": {
@@ -1588,7 +1588,7 @@ exports.handler = async (event) => {
     ds.schoolHomePageSections.createResolver('UpdateSchoolHomePageSection', {
       typeName: 'Mutation',
       fieldName: 'updateSchoolHomePageSection',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `{
+      requestMappingTemplate: MappingTemplate.fromString(adminGuard + `{
   "version": "2018-05-29",
   "operation": "UpdateItem",
   "key": {
@@ -1612,7 +1612,7 @@ exports.handler = async (event) => {
     ds.schoolHomePageSections.createResolver('DeleteSchoolHomePageSection', {
       typeName: 'Mutation',
       fieldName: 'deleteSchoolHomePageSection',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `{
+      requestMappingTemplate: MappingTemplate.fromString(adminGuard + `{
   "version": "2018-05-29",
   "operation": "DeleteItem",
   "key": {
@@ -1648,7 +1648,15 @@ exports.handler = async (event) => {
     });
     ds.manualProofUploader.createResolver('CreateManualPaymentProofUploadUrlResolver', {
       typeName: 'Mutation',
-      fieldName: 'createManualPaymentProofUploadUrl'
+      fieldName: 'createManualPaymentProofUploadUrl',
+      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `{
+  "version": "2018-05-29",
+  "operation": "Invoke",
+  "payload": {
+    "input": $util.toJson($ctx.args.input)
+  }
+}`),
+      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
     });
     ds.receiptUploader.createResolver('CreateReceiptUploadUrlResolver', {
       typeName: 'Mutation',
@@ -3207,7 +3215,15 @@ exports.handler = async (event) => {
       'SelectInvoiceOptionalItemsResolver',
       {
         typeName: 'Mutation',
-        fieldName: 'selectInvoiceOptionalItems'
+        fieldName: 'selectInvoiceOptionalItems',
+        requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `{
+  "version": "2018-05-29",
+  "operation": "Invoke",
+  "payload": {
+    "input": $util.toJson($ctx.args.input)
+  }
+}`),
+        responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
       }
     );
 
@@ -4757,7 +4773,7 @@ $util.toJson({
     ds.messageTemplates.createResolver('TemplatesBySchool', {
       typeName: 'Query',
       fieldName: 'templatesBySchool',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
+      requestMappingTemplate: MappingTemplate.fromString(billingGuard + `
 {
   "version": "2018-05-29",
   "operation": "Query",
@@ -4776,7 +4792,7 @@ $util.toJson({
     ds.messageTemplates.createResolver('CreateMessageTemplate', {
       typeName: 'Mutation',
       fieldName: 'createMessageTemplate',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
+      requestMappingTemplate: MappingTemplate.fromString(billingGuard + `
 {
   "version": "2018-05-29",
   "operation": "PutItem",
@@ -4805,7 +4821,7 @@ $util.toJson({
     ds.messageTemplates.createResolver('UpdateMessageTemplate', {
       typeName: 'Mutation',
       fieldName: 'updateMessageTemplate',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
+      requestMappingTemplate: MappingTemplate.fromString(billingGuard + `
 {
   "version": "2018-05-29",
   "operation": "UpdateItem",
@@ -4841,7 +4857,7 @@ $util.toJson({
     ds.messageTemplates.createResolver('DeleteMessageTemplate', {
       typeName: 'Mutation',
       fieldName: 'deleteMessageTemplate',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
+      requestMappingTemplate: MappingTemplate.fromString(billingGuard + `
 {
   "version": "2018-05-29",
   "operation": "DeleteItem",
@@ -4856,7 +4872,7 @@ $util.toJson({
     ds.messageCampaigns.createResolver('CampaignsBySchool', {
       typeName: 'Query',
       fieldName: 'campaignsBySchool',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
+      requestMappingTemplate: MappingTemplate.fromString(billingGuard + `
 {
   "version": "2018-05-29",
   "operation": "Query",
@@ -4875,7 +4891,7 @@ $util.toJson({
     ds.messageCampaigns.createResolver('CreateMessageCampaign', {
       typeName: 'Mutation',
       fieldName: 'createMessageCampaign',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
+      requestMappingTemplate: MappingTemplate.fromString(billingGuard + `
 {
   "version": "2018-05-29",
   "operation": "PutItem",
@@ -4905,7 +4921,7 @@ $util.toJson({
     ds.messageCampaigns.createResolver('UpdateMessageCampaignStatus', {
       typeName: 'Mutation',
       fieldName: 'updateMessageCampaignStatus',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
+      requestMappingTemplate: MappingTemplate.fromString(billingGuard + `
 {
   "version": "2018-05-29",
   "operation": "UpdateItem",
@@ -4931,7 +4947,7 @@ $util.toJson({
     ds.messageRecipients.createResolver('RecipientsByCampaign', {
       typeName: 'Query',
       fieldName: 'recipientsByCampaign',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
+      requestMappingTemplate: MappingTemplate.fromString(billingGuard + `
 {
   "version": "2018-05-29",
   "operation": "Query",
@@ -4985,7 +5001,7 @@ $util.toJson({
     ds.messageRecipients.createResolver('RecipientsByInvoice', {
       typeName: 'Query',
       fieldName: 'recipientsByInvoice',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
+      requestMappingTemplate: MappingTemplate.fromString(billingGuard + `
 {
   "version": "2018-05-29",
   "operation": "Query",
@@ -5382,4 +5398,3 @@ $util.toJson($ctx.prev.result.items)
     // Announcement/result publish pipelines removed temporarily to stay under AppSync resource cap.
   }
 }
-

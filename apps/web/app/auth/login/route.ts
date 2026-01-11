@@ -33,50 +33,9 @@ const isLocalhost = (host: string) => host === "localhost" || host.endsWith(".lo
 const buildRedirectUri = (host: string, proto: string) => `${proto}://${host}/auth/callback`;
 
 export async function GET(request: NextRequest) {
-  const host = getRequestHost(request);
-  const proto = request.headers.get("x-forwarded-proto") || (isLocalhost(host) ? "http" : "https");
-  const redirectUri = buildRedirectUri(host, proto);
-
-  if (!COGNITO_CLIENT_ID) {
-    return NextResponse.json({ error: "COGNITO client id missing" }, { status: 500 });
-  }
-
   const url = new URL(request.url);
   const nextPath = url.searchParams.get("next") || "";
   const safeNext = nextPath.startsWith("/") ? nextPath : "";
-
-  const { verifier, challenge } = createPkce();
-  const state = base64UrlEncode(crypto.randomBytes(16));
-
-  const authUrl = new URL(`${COGNITO_DOMAIN}/oauth2/authorize`);
-  authUrl.searchParams.set("client_id", COGNITO_CLIENT_ID);
-  authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("scope", "openid email profile");
-  authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("state", state);
-  authUrl.searchParams.set("code_challenge", challenge);
-  authUrl.searchParams.set("code_challenge_method", "S256");
-
-  const response = NextResponse.redirect(authUrl.toString(), 302);
-  response.cookies.set("cp.oauth_state", state, {
-    httpOnly: true,
-    secure: !isLocalhost(host),
-    sameSite: "lax",
-    path: "/"
-  });
-  response.cookies.set("cp.pkce_verifier", verifier, {
-    httpOnly: true,
-    secure: !isLocalhost(host),
-    sameSite: "lax",
-    path: "/"
-  });
-  if (safeNext) {
-    response.cookies.set("cp.post_login", safeNext, {
-      httpOnly: true,
-      secure: !isLocalhost(host),
-      sameSite: "lax",
-      path: "/"
-    });
-  }
-  return response;
+  const target = safeNext ? `/login?next=${encodeURIComponent(safeNext)}` : "/login";
+  return NextResponse.redirect(new URL(target, request.url), 302);
 }

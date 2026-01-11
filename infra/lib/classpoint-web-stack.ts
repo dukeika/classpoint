@@ -14,6 +14,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
+import * as fs from 'fs';
 import * as path from 'path';
 
 export interface ClasspointWebStackProps extends StackProps {
@@ -78,6 +79,15 @@ export class ClasspointWebStack extends Stack {
     });
 
     const openNextDir = path.join(__dirname, '..', '..', 'apps', 'web', '.open-next');
+    const buildIdPath = path.join(openNextDir, 'buildId');
+    const buildId = (() => {
+      try {
+        return fs.readFileSync(buildIdPath, 'utf8').trim();
+      } catch {
+        return '';
+      }
+    })();
+    const cachePrefix = buildId ? `_cache/${buildId}` : '_cache';
     const serverFunction = new lambda.Function(this, 'ServerFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'index.handler',
@@ -97,7 +107,7 @@ export class ClasspointWebStack extends Stack {
         ...(cognitoDomain ? { COGNITO_DOMAIN: cognitoDomain } : {}),
         CACHE_BUCKET_NAME: assetsBucket.bucketName,
         CACHE_BUCKET_REGION: this.region,
-        CACHE_BUCKET_KEY_PREFIX: '_cache',
+        CACHE_BUCKET_KEY_PREFIX: cachePrefix,
         CACHE_DYNAMO_TABLE: tagCacheTable.tableName,
         REVALIDATION_QUEUE_URL: revalidationQueue.queueUrl,
         REVALIDATION_QUEUE_REGION: this.region,
@@ -186,6 +196,7 @@ function handler(event) {
       minTtl: cdk.Duration.seconds(0),
       maxTtl: cdk.Duration.days(1)
     });
+    const originRequestPolicy = cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER;
 
     const imageCachePolicy = new cloudfront.CachePolicy(this, 'ImageCachePolicy', {
       queryStringBehavior: cloudfront.CacheQueryStringBehavior.all(),
@@ -207,8 +218,8 @@ function handler(event) {
     const certificate =
       rootDomain && hostedZone
         ? new acm.DnsValidatedCertificate(this, 'CloudFrontCertificate', {
-            domainName: `app.${rootDomain}`,
-            subjectAlternativeNames: [`*.${rootDomain}`],
+            domainName: rootDomain,
+            subjectAlternativeNames: [`app.${rootDomain}`, `*.${rootDomain}`, `www.${rootDomain}`],
             hostedZone,
             region: 'us-east-1'
           })
@@ -370,7 +381,7 @@ function handler(event) {
         cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: defaultCachePolicy,
-        originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+        originRequestPolicy,
         functionAssociations: [
           {
             function: forwardedHostFunction,
@@ -385,7 +396,7 @@ function handler(event) {
           cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: imageCachePolicy,
-          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER
+          originRequestPolicy
         },
         '_next/data/*': {
           origin: serverOrigin,
@@ -393,7 +404,7 @@ function handler(event) {
           cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: defaultCachePolicy,
-          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER
+          originRequestPolicy
         },
         '_next/*': {
           origin: s3Origin,
@@ -408,7 +419,7 @@ function handler(event) {
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED
         }
       },
-      domainNames: certificate && rootDomain ? [`app.${rootDomain}`, `*.${rootDomain}`] : undefined,
+      domainNames: certificate && rootDomain ? [rootDomain, `app.${rootDomain}`, `*.${rootDomain}`, `www.${rootDomain}`] : undefined,
       certificate,
       priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
       webAclId: wafAcl?.attrArn
@@ -428,7 +439,7 @@ function handler(event) {
 
     new s3deploy.BucketDeployment(this, 'DeployCache', {
       destinationBucket: assetsBucket,
-      destinationKeyPrefix: '_cache',
+      destinationKeyPrefix: cachePrefix,
       sources: [s3deploy.Source.asset(path.join(openNextDir, 'cache'))],
       cacheControl: [s3deploy.CacheControl.noCache()]
     });
@@ -453,6 +464,16 @@ function handler(event) {
       new route53.AaaaRecord(this, 'RootAliasAAAA', {
         zone: hostedZone,
         recordName: rootDomain,
+        target
+      });
+      new route53.ARecord(this, 'WwwAlias', {
+        zone: hostedZone,
+        recordName: `www.${rootDomain}`,
+        target
+      });
+      new route53.AaaaRecord(this, 'WwwAliasAAAA', {
+        zone: hostedZone,
+        recordName: `www.${rootDomain}`,
         target
       });
       new route53.ARecord(this, 'TenantAlias', {

@@ -26,7 +26,6 @@ export interface ClasspointServicesStackProps extends StackProps {
   envName: string;
   eventBus: events.IEventBus;
   uploadsBucket: s3.IBucket;
-  awsSdkLayer: lambda.ILayerVersion;
   userPoolId: string;
   tables: {
     users: dynamodb.ITable;
@@ -67,13 +66,18 @@ export class ClasspointServicesStack extends Stack {
   constructor(scope: Construct, id: string, props: ClasspointServicesStackProps) {
     super(scope, id, props);
 
-    const { envName, eventBus, uploadsBucket, awsSdkLayer, tables, userPoolId } = props;
+    const { envName, eventBus, uploadsBucket, tables, userPoolId } = props;
     const rootDomain = this.node.tryGetContext('rootDomain') as string | undefined;
     const hostedZoneId = this.node.tryGetContext('hostedZoneId') as string | undefined;
     Tags.of(this).add('environment', envName);
 
     const removalPolicy = envName === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY;
     const enableStaticFrontend = (this.node.tryGetContext('frontendMode') ?? 'edge') === 'static';
+    const awsSdkLayer = new lambda.LayerVersion(this, 'AwsSdkLayer', {
+      code: lambda.Code.fromAsset(path.join(__dirname, '..', '..', 'services', 'layers', 'aws-sdk')),
+      compatibleRuntimes: [lambda.Runtime.NODEJS_18_X],
+      description: 'AWS SDK v3 dependencies for worker lambdas'
+    });
     let logsBucket: s3.Bucket | undefined;
     let frontendBucket: s3.Bucket | undefined;
     let distribution: cloudfront.Distribution | undefined;

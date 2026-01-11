@@ -181,79 +181,132 @@ export default function PublicSchoolPage({ slug }: { slug: string }) {
   const aboutContent = about ? parseJsonContent(about.contentJson) : {};
 
   return (
-    <main className="page">
-      <section className="shell">
-        <div className="hero fade-up">
-          <div>
-            <span className="chip">School</span>
-            <h1>{school?.name || heroContent.headline || slug}</h1>
-            <p>{heroContent.subheadline || "School profile and updates."}</p>
-          </div>
-          {profile?.logoUrl && (
+    <main className="school-page">
+      <header className="school-nav">
+        <div className="school-logo">
+          {profile?.logoUrl ? (
             <Image
               src={profile.logoUrl}
               alt={`${school?.name || slug} logo`}
-              width={72}
-              height={72}
+              width={46}
+              height={46}
               unoptimized
             />
+          ) : (
+            <span className="school-mark">{(school?.name || slug).slice(0, 2).toUpperCase()}</span>
+          )}
+          <div>
+            <strong>{school?.name || heroContent.headline || slug}</strong>
+            <span>{profile?.city || "Nigeria"}</span>
+          </div>
+        </div>
+        <div className="school-nav-actions">
+          <a className="ghost-button" href="/login?next=/portal">
+            Parent portal
+          </a>
+          <a className="button" href="/login?next=/admin">
+            Staff sign in
+          </a>
+        </div>
+      </header>
+
+      <section className="school-hero">
+        <div className="school-hero-copy">
+          <span className="chip">School overview</span>
+          <h1>{heroContent.headline || school?.name || slug}</h1>
+          <p>{heroContent.subheadline || "A modern learning community with transparent communication."}</p>
+          <div className="school-hero-meta">
+            <span className="school-pill">Admissions open</span>
+            <span className="school-pill">Term updates</span>
+            <span className="school-pill">Parent support</span>
+          </div>
+        </div>
+        <div className="school-hero-media">
+          {profile?.heroImageUrl ? (
+            <Image
+              src={profile.heroImageUrl}
+              alt={`${school?.name || slug} campus`}
+              width={520}
+              height={360}
+              unoptimized
+            />
+          ) : (
+            <div className="school-hero-placeholder">
+              <h3>ClassPoint Public Page</h3>
+              <p>Upload a hero image in Branding to showcase your campus.</p>
+            </div>
           )}
         </div>
+      </section>
 
-        {loading && <div className="card">Loading school page...</div>}
-        {error && <div className="card">{error}</div>}
+      {loading && <div className="school-card">Loading school page...</div>}
+      {error && <div className="school-card">{error}</div>}
 
-        {!loading && !error && (
-          <>
-            <div className="grid fade-up delay-2">
-              <div className="card">
-                <h3>About</h3>
-                <p>{aboutContent.body || "About section not configured yet."}</p>
-                <p>
-                  {profile?.address ? `${profile.address}, ` : ""}
-                  {profile?.city ? `${profile.city}, ` : ""}
-                  {profile?.state || ""}
-                </p>
-                <p>{profile?.contactEmail || ""}</p>
-                <p>{profile?.contactPhone || ""}</p>
-              </div>
-              <div className="card">
-                <h3>Announcements</h3>
-                <div className="list">
-                  {announcements.length === 0 && <p>No announcements yet.</p>}
-                  {announcements.map((item) => (
-                    <div key={item.id} className="line-item">
-                      <div>
-                        <strong>{item.title}</strong>
-                        <small>{item.body}</small>
-                      </div>
-                      <span>{item.publishedAt ? new Date(item.publishedAt).toLocaleDateString() : ""}</span>
-                    </div>
-                  ))}
+      {!loading && !error && (
+        <>
+          <section className="school-grid">
+            <div className="school-card">
+              <h3>About {school?.name || slug}</h3>
+              <p>{aboutContent.body || "About section not configured yet."}</p>
+              <div className="school-contact">
+                <div>
+                  <strong>Location</strong>
+                  <span>
+                    {profile?.address ? `${profile.address}, ` : ""}
+                    {profile?.city ? `${profile.city}, ` : ""}
+                    {profile?.state || ""}
+                  </span>
+                </div>
+                <div>
+                  <strong>Email</strong>
+                  <span>{profile?.contactEmail || "Not provided"}</span>
+                </div>
+                <div>
+                  <strong>Phone</strong>
+                  <span>{profile?.contactPhone || "Not provided"}</span>
                 </div>
               </div>
             </div>
 
-            <div className="card fade-up delay-3">
-              <h3>Calendar</h3>
-              <div className="list">
-                {events.length === 0 && <p>No events posted.</p>}
-                {events.map((event) => (
-                  <div key={event.id} className="line-item">
+            <div className="school-card">
+              <h3>Latest announcements</h3>
+              <div className="school-list">
+                {announcements.length === 0 && <p>No announcements yet.</p>}
+                {announcements.map((item) => (
+                  <div key={item.id} className="school-list-item">
                     <div>
-                      <strong>{event.title}</strong>
-                      <small>
-                        {event.startAt ? new Date(event.startAt).toLocaleDateString() : ""}{" "}
-                        {event.endAt ? `- ${new Date(event.endAt).toLocaleDateString()}` : ""}
-                      </small>
+                      <strong>{item.title}</strong>
+                      <small>{item.body}</small>
                     </div>
+                    <span>{item.publishedAt ? new Date(item.publishedAt).toLocaleDateString() : ""}</span>
                   </div>
                 ))}
               </div>
             </div>
-          </>
-        )}
-      </section>
+          </section>
+
+          <section className="school-card school-calendar">
+            <div className="school-card-header">
+              <h3>Upcoming events</h3>
+              <span className="muted">Academic calendar highlights</span>
+            </div>
+            <div className="school-list">
+              {events.length === 0 && <p>No events posted.</p>}
+              {events.map((event) => (
+                <div key={event.id} className="school-list-item">
+                  <div>
+                    <strong>{event.title}</strong>
+                    <small>
+                      {event.startAt ? new Date(event.startAt).toLocaleDateString() : ""}{" "}
+                      {event.endAt ? `- ${new Date(event.endAt).toLocaleDateString()}` : ""}
+                    </small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
     </main>
   );
 }

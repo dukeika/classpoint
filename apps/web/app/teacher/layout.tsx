@@ -29,6 +29,14 @@ function TeacherAccessGate({ children }: { children: ReactNode }) {
         <div className="card">
           <h2>Teacher access required</h2>
           <p>Sign in with a teacher account to access this section.</p>
+          <div className="cta-row">
+            <a className="button secondary" href="/login?next=/teacher">
+              Go to login
+            </a>
+            <a className="ghost-button" href="/auth/logout">
+              Sign out and try again
+            </a>
+          </div>
         </div>
       </section>
     );

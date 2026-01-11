@@ -29,6 +29,14 @@ function PortalAccessGate({ children }: { children: ReactNode }) {
         <div className="card">
           <h2>Parent access required</h2>
           <p>Sign in with a parent or student account to access this section.</p>
+          <div className="cta-row">
+            <a className="button secondary" href="/login?next=/portal">
+              Go to login
+            </a>
+            <a className="ghost-button" href="/auth/logout">
+              Sign out and try again
+            </a>
+          </div>
         </div>
       </section>
     );
