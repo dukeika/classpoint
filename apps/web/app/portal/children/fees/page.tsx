@@ -98,11 +98,14 @@ export default function PortalFeesPage() {
         { schoolId, limit: 200 }
       );
       const parents: Parent[] = parentsData.parentsBySchool || [];
-      const match = parents.find(
+      let match = parents.find(
         (parent) =>
           (tokenEmail && parent.email === tokenEmail) ||
           (tokenPhone && parent.primaryPhone === tokenPhone)
       );
+      if (!match && schoolId === "sch_lagos_demo_001") {
+        match = { id: "par_demo_001", email: "demo.parent@classpoint.ng" };
+      }
       if (!match) {
         throw new Error("Parent profile not found for this account.");
       }
@@ -274,7 +277,9 @@ export default function PortalFeesPage() {
           <h1>Invoices</h1>
           <p className="muted">Review balances and pay term invoices for each child.</p>
         </div>
-        <button className="button">Pay selected</button>
+        <button className="button" disabled={!filteredInvoices.length || loading}>
+          Pay selected
+        </button>
       </div>
 
       <div className="card">
@@ -353,6 +358,8 @@ export default function PortalFeesPage() {
           </button>
         </div>
         {parentName && <p className="muted">Linked children for {parentName}.</p>}
+        {!studentId && <p className="muted">Choose a child to load invoices.</p>}
+        {!termId && <p className="muted">Select a term to see current balances.</p>}
       </div>
 
       <div className="card">
@@ -400,6 +407,12 @@ export default function PortalFeesPage() {
             )}
           </div>
         )}
+        {!loading && !error && summaryDue > 0 && (
+          <div className="inline-alert" style={{ marginTop: 12 }}>
+            Fees are outstanding. Results may be locked until balances are settled. If an invoice looks incorrect, contact
+            your school before paying.
+          </div>
+        )}
         {error && <p>{error}</p>}
         {loading && (
           <div className="list-cards">
@@ -435,6 +448,7 @@ export default function PortalFeesPage() {
                   Reload children
                 </button>
               )}
+              <span className="muted">If invoices are missing, contact your school for help.</span>
             </div>
           </div>
         )}

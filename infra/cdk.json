@@ -9,6 +9,9 @@
     "@aws-cdk/aws-lambda:recognizeVersionProps": true,
     "@aws-cdk/aws-lambda:enableStoredProcedures": true,
     "@aws-cdk/aws-elasticloadbalancingv2:emitStackChanges": true,
-    "@aws-cdk-containers/ecs-service-extensions:enableDefaultLogDriver": true
+    "@aws-cdk-containers/ecs-service-extensions:enableDefaultLogDriver": true,
+    "paymentsWebhookUrl": "https://bon7az6mbi.execute-api.us-east-1.amazonaws.com/prod/api/webhooks/paystack/school",
+    "rootDomain": "classpoint.ng",
+    "hostedZoneId": "Z01419482WTFB08SP78AO"
   }
 }

@@ -70,6 +70,7 @@ const parseJsonContent = (value: string) => {
 };
 
 export default function PublicSchoolPage({ slug }: { slug: string }) {
+  const isDemo = slug === "demo";
   const [school, setSchool] = useState<School | null>(null);
   const [profile, setProfile] = useState<SchoolProfile | null>(null);
   const [sections, setSections] = useState<HomeSection[]>([]);
@@ -204,8 +205,14 @@ export default function PublicSchoolPage({ slug }: { slug: string }) {
           <a className="ghost-button" href="/login?next=/portal">
             Parent portal
           </a>
+          <a className="ghost-button" href="/login?next=/teacher">
+            Teacher sign in
+          </a>
           <a className="button" href="/login?next=/admin">
             Staff sign in
+          </a>
+          <a className="ghost-button" href={`mailto:${profile?.contactEmail || "support@classpoint.ng"}`}>
+            Contact support
           </a>
         </div>
       </header>
@@ -214,11 +221,39 @@ export default function PublicSchoolPage({ slug }: { slug: string }) {
         <div className="school-hero-copy">
           <span className="chip">School overview</span>
           <h1>{heroContent.headline || school?.name || slug}</h1>
-          <p>{heroContent.subheadline || "A modern learning community with transparent communication."}</p>
+          <p>
+            {heroContent.subheadline ||
+              (isDemo
+                ? "This is the demo campus. Parents use the Parent portal; staff use Staff sign in."
+                : "A modern learning community with transparent communication.")}
+          </p>
           <div className="school-hero-meta">
             <span className="school-pill">Admissions open</span>
             <span className="school-pill">Term updates</span>
             <span className="school-pill">Parent support</span>
+          </div>
+          <div className="role-shortcuts">
+            <div>
+              <strong>Parent portal</strong>
+              <p className="muted">View fees, results, messages, and support.</p>
+              <a className="ghost-button" href="/login?next=/portal">
+                Open parent portal
+              </a>
+            </div>
+            <div>
+              <strong>Teacher sign in</strong>
+              <p className="muted">Access attendance, classes, and communications.</p>
+              <a className="ghost-button" href="/login?next=/teacher">
+                Teacher sign in
+              </a>
+            </div>
+            <div>
+              <strong>Admin / staff</strong>
+              <p className="muted">Fees, collections, imports, and operations.</p>
+              <a className="button" href="/login?next=/admin">
+                Open staff dashboard
+              </a>
+            </div>
           </div>
         </div>
         <div className="school-hero-media">
@@ -247,7 +282,12 @@ export default function PublicSchoolPage({ slug }: { slug: string }) {
           <section className="school-grid">
             <div className="school-card">
               <h3>About {school?.name || slug}</h3>
-              <p>{aboutContent.body || "About section not configured yet."}</p>
+              <p>
+                {aboutContent.body ||
+                  (isDemo
+                    ? "Demo Academy is a sample school to explore ClassPoint. Use the Parent portal for families and Staff sign in for admins/teachers."
+                    : "About section not configured yet.")}
+              </p>
               <div className="school-contact">
                 <div>
                   <strong>Location</strong>
@@ -264,6 +304,14 @@ export default function PublicSchoolPage({ slug }: { slug: string }) {
                 <div>
                   <strong>Phone</strong>
                   <span>{profile?.contactPhone || "Not provided"}</span>
+                </div>
+                <div className="school-contact-actions">
+                  <a
+                    className="ghost-button"
+                    href={`mailto:${profile?.contactEmail || "support@classpoint.ng"}?subject=${encodeURIComponent(`Hello ${school?.name || slug}`)}`}
+                  >
+                    Contact school
+                  </a>
                 </div>
               </div>
             </div>

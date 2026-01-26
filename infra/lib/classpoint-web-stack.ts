@@ -42,6 +42,30 @@ export class ClasspointWebStack extends Stack {
     const cognitoDomain =
       (this.node.tryGetContext('cognitoDomain') as string | undefined) ||
       (rootDomain ? `https://auth.${rootDomain}` : undefined);
+    const paymentsWebhookUrl = this.node.tryGetContext('paymentsWebhookUrl') as string | undefined;
+    const paystackSchoolWebhookUrl =
+      (this.node.tryGetContext('paystackSchoolWebhookUrl') as string | undefined) || paymentsWebhookUrl;
+    const paystackClasspointWebhookUrl = this.node.tryGetContext('paystackClasspointWebhookUrl') as string | undefined;
+    const classpointPaystackEnv =
+      (this.node.tryGetContext('classpointPaystackEnv') as string | undefined) ||
+      process.env.CLASSPOINT_PAYSTACK_ENV ||
+      '';
+    const classpointPaystackPublicKeyTest =
+      (this.node.tryGetContext('classpointPaystackPublicKeyTest') as string | undefined) ||
+      process.env.CLASSPOINT_PAYSTACK_PUBLIC_KEY_TEST ||
+      '';
+    const classpointPaystackSecretKeyTest =
+      (this.node.tryGetContext('classpointPaystackSecretKeyTest') as string | undefined) ||
+      process.env.CLASSPOINT_PAYSTACK_SECRET_KEY_TEST ||
+      '';
+    const classpointPaystackPublicKeyLive =
+      (this.node.tryGetContext('classpointPaystackPublicKeyLive') as string | undefined) ||
+      process.env.CLASSPOINT_PAYSTACK_PUBLIC_KEY_LIVE ||
+      '';
+    const classpointPaystackSecretKeyLive =
+      (this.node.tryGetContext('classpointPaystackSecretKeyLive') as string | undefined) ||
+      process.env.CLASSPOINT_PAYSTACK_SECRET_KEY_LIVE ||
+      '';
 
     const removalPolicy = envName === 'prod' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY;
     const autoDeleteObjects = envName !== 'prod';
@@ -104,6 +128,26 @@ export class ClasspointWebStack extends Stack {
         COGNITO_USER_POOL_ID: cognitoUserPoolId ?? '',
         COGNITO_CLIENT_ID: cognitoClientId ?? '',
         NEXT_PUBLIC_COGNITO_CLIENT_ID: cognitoClientId ?? '',
+        ...(paymentsWebhookUrl ? { NEXT_PUBLIC_PAYMENTS_WEBHOOK_URL: paymentsWebhookUrl } : {}),
+        ...(paystackSchoolWebhookUrl
+          ? { NEXT_PUBLIC_PAYSTACK_SCHOOL_WEBHOOK_URL: paystackSchoolWebhookUrl }
+          : {}),
+        ...(paystackClasspointWebhookUrl
+          ? { NEXT_PUBLIC_PAYSTACK_CLASSPOINT_WEBHOOK_URL: paystackClasspointWebhookUrl }
+          : {}),
+        ...(classpointPaystackEnv ? { CLASSPOINT_PAYSTACK_ENV: classpointPaystackEnv } : {}),
+        ...(classpointPaystackPublicKeyTest
+          ? { CLASSPOINT_PAYSTACK_PUBLIC_KEY_TEST: classpointPaystackPublicKeyTest }
+          : {}),
+        ...(classpointPaystackSecretKeyTest
+          ? { CLASSPOINT_PAYSTACK_SECRET_KEY_TEST: classpointPaystackSecretKeyTest }
+          : {}),
+        ...(classpointPaystackPublicKeyLive
+          ? { CLASSPOINT_PAYSTACK_PUBLIC_KEY_LIVE: classpointPaystackPublicKeyLive }
+          : {}),
+        ...(classpointPaystackSecretKeyLive
+          ? { CLASSPOINT_PAYSTACK_SECRET_KEY_LIVE: classpointPaystackSecretKeyLive }
+          : {}),
         ...(cognitoDomain ? { COGNITO_DOMAIN: cognitoDomain } : {}),
         CACHE_BUCKET_NAME: assetsBucket.bucketName,
         CACHE_BUCKET_REGION: this.region,

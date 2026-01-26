@@ -94,7 +94,7 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function StaffAuthGate({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useStaffAuth();
+  const { isAuthenticated, loading, displayName } = useStaffAuth();
 
   return (
     <>
@@ -104,6 +104,12 @@ export function StaffAuthGate({ children }: { children: React.ReactNode }) {
           <p className="muted">
             You are viewing sample data. Sign in through the staff portal to connect live data.
           </p>
+        </div>
+      )}
+      {!loading && isAuthenticated && (
+        <div className="card muted compact-card">
+          <strong>Welcome {displayName}</strong>
+          <p className="muted">You’re signed in. Pick a section to continue.</p>
         </div>
       )}
       {children}

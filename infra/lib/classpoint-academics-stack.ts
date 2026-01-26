@@ -34,6 +34,12 @@ export class ClasspointAcademicsStack extends Stack {
     #end
   #end
 `;
+    const staffGuard = tenantGuard + `
+  #set($groups = $util.defaultIfNull($ctx.identity.claims.get("cognito:groups"), []))
+  #if(!$groups.contains("APP_ADMIN") && !$groups.contains("SCHOOL_ADMIN") && !$groups.contains("BURSAR") && !$groups.contains("TEACHER"))
+    $util.unauthorized()
+  #end
+`;
 
     const schoolSetupStatesTable = new dynamodb.Table(this, 'SchoolSetupStatesTable', {
       partitionKey: { name: 'schoolId', type: dynamodb.AttributeType.STRING },
@@ -144,6 +150,621 @@ export class ClasspointAcademicsStack extends Stack {
     createSetupStateResolver.addDependsOn(setupStateDataSource);
     updateSetupStateResolver.addDependsOn(setupStateDataSource);
     setupStateBySchoolResolver.addDependsOn(setupStateDataSource);
+
+    const sessionsBySchoolRequest = staffGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "Query",
+  "index": "bySchoolSession",
+  "query": {
+    "expression": "schoolId = :sid",
+    "expressionValues": {
+      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId)
+    }
+  },
+  "limit": $util.defaultIfNull($ctx.args.limit, 50)
+}`;
+
+    new appsync.CfnResolver(this, 'SessionsBySchoolResolver', {
+      apiId,
+      typeName: 'Query',
+      fieldName: 'sessionsBySchool',
+      dataSourceName: 'AcademicSessionsDS',
+      requestMappingTemplate: sessionsBySchoolRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result.items)'
+    });
+
+    const termsBySessionRequest = staffGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "Query",
+  "index": "bySession",
+  "query": {
+    "expression": "sessionId = :sid",
+    "expressionValues": {
+      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.sessionId)
+    }
+  },
+#if($tenantSchool)
+  "filter": {
+    "expression": "schoolId = :tsid",
+    "expressionValues": {
+      ":tsid": $util.dynamodb.toDynamoDBJson($tenantSchool)
+    }
+  },
+#end
+  "limit": $util.defaultIfNull($ctx.args.limit, 20)
+}`;
+
+    new appsync.CfnResolver(this, 'TermsBySessionResolver', {
+      apiId,
+      typeName: 'Query',
+      fieldName: 'termsBySession',
+      dataSourceName: 'TermsDS',
+      requestMappingTemplate: termsBySessionRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result.items)'
+    });
+
+    const levelsBySchoolRequest = staffGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "Query",
+  "index": "bySchoolLevel",
+  "query": {
+    "expression": "schoolId = :sid",
+    "expressionValues": {
+      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId)
+    }
+  },
+  "limit": $util.defaultIfNull($ctx.args.limit, 50)
+}`;
+
+    new appsync.CfnResolver(this, 'LevelsBySchoolResolver', {
+      apiId,
+      typeName: 'Query',
+      fieldName: 'levelsBySchool',
+      dataSourceName: 'LevelsDS',
+      requestMappingTemplate: levelsBySchoolRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result.items)'
+    });
+
+    const classYearsBySchoolRequest = staffGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "Query",
+  "index": "bySchoolClassYear",
+  "query": {
+    "expression": "schoolId = :sid",
+    "expressionValues": {
+      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId)
+    }
+  },
+  "limit": $util.defaultIfNull($ctx.args.limit, 50)
+}`;
+
+    new appsync.CfnResolver(this, 'ClassYearsBySchoolResolver', {
+      apiId,
+      typeName: 'Query',
+      fieldName: 'classYearsBySchool',
+      dataSourceName: 'ClassYearsDS',
+      requestMappingTemplate: classYearsBySchoolRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result.items)'
+    });
+
+    const classArmsBySchoolRequest = staffGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "Query",
+  "index": "bySchoolArm",
+  "query": {
+    "expression": "schoolId = :sid",
+    "expressionValues": {
+      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId)
+    }
+  },
+  "limit": $util.defaultIfNull($ctx.args.limit, 50)
+}`;
+
+    new appsync.CfnResolver(this, 'ClassArmsBySchoolResolver', {
+      apiId,
+      typeName: 'Query',
+      fieldName: 'classArmsBySchool',
+      dataSourceName: 'ClassArmsDS',
+      requestMappingTemplate: classArmsBySchoolRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result.items)'
+    });
+
+    const classGroupsBySchoolRequest = staffGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "Query",
+  "index": "bySchoolClassGroup",
+  "query": {
+    "expression": "schoolId = :sid",
+    "expressionValues": {
+      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId)
+    }
+  },
+  "limit": $util.defaultIfNull($ctx.args.limit, 100)
+}`;
+
+    new appsync.CfnResolver(this, 'ClassGroupsBySchoolResolver', {
+      apiId,
+      typeName: 'Query',
+      fieldName: 'classGroupsBySchool',
+      dataSourceName: 'ClassGroupsDS',
+      requestMappingTemplate: classGroupsBySchoolRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result.items)'
+    });
+
+    const createAcademicSessionRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($util.autoId())
+  },
+  "attributeValues": {
+    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
+    "startDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.startDate),
+    "endDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.endDate),
+    "status": $util.dynamodb.toDynamoDBJson($ctx.args.input.status)
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'CreateAcademicSessionResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'createAcademicSession',
+      dataSourceName: 'AcademicSessionsDS',
+      requestMappingTemplate: createAcademicSessionRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result)'
+    });
+
+    const updateAcademicSessionRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
+  },
+  "attributeValues": {
+    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
+    "startDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.startDate),
+    "endDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.endDate),
+    "status": $util.dynamodb.toDynamoDBJson($ctx.args.input.status)
+  },
+  "condition": {
+    "expression": "attribute_exists(#id)",
+    "expressionNames": { "#id": "id" }
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'UpdateAcademicSessionResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'updateAcademicSession',
+      dataSourceName: 'AcademicSessionsDS',
+      requestMappingTemplate: updateAcademicSessionRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result)'
+    });
+
+    const deleteAcademicSessionRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "DeleteItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'DeleteAcademicSessionResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'deleteAcademicSession',
+      dataSourceName: 'AcademicSessionsDS',
+      requestMappingTemplate: deleteAcademicSessionRequest,
+      responseMappingTemplate: '$util.toJson(true)'
+    });
+
+    const createTermRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($util.autoId())
+  },
+  "attributeValues": {
+    "sessionId": $util.dynamodb.toDynamoDBJson($ctx.args.input.sessionId),
+    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
+    "startDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.startDate),
+    "endDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.endDate),
+    "status": $util.dynamodb.toDynamoDBJson($ctx.args.input.status)
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'CreateTermResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'createTerm',
+      dataSourceName: 'TermsDS',
+      requestMappingTemplate: createTermRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result)'
+    });
+
+    const updateTermRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
+  },
+  "attributeValues": {
+    "sessionId": $util.dynamodb.toDynamoDBJson($ctx.args.input.sessionId),
+    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
+    "startDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.startDate),
+    "endDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.endDate),
+    "status": $util.dynamodb.toDynamoDBJson($ctx.args.input.status)
+  },
+  "condition": {
+    "expression": "attribute_exists(#id)",
+    "expressionNames": { "#id": "id" }
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'UpdateTermResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'updateTerm',
+      dataSourceName: 'TermsDS',
+      requestMappingTemplate: updateTermRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result)'
+    });
+
+    const deleteTermRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "DeleteItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'DeleteTermResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'deleteTerm',
+      dataSourceName: 'TermsDS',
+      requestMappingTemplate: deleteTermRequest,
+      responseMappingTemplate: '$util.toJson(true)'
+    });
+
+    const createLevelRequest = tenantGuard + `
+#set($newId = $util.autoId())
+$util.qr($ctx.stash.put("newId", $newId))
+{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($newId)
+  },
+  "attributeValues": {
+    "type": $util.dynamodb.toDynamoDBJson($ctx.args.input.type),
+    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
+    "sortOrder": $util.dynamodb.toDynamoDBJson($ctx.args.input.sortOrder.toString())
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'CreateLevelResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'createLevel',
+      dataSourceName: 'LevelsDS',
+      requestMappingTemplate: createLevelRequest,
+      responseMappingTemplate: `
+#set($input = $ctx.args.input)
+$util.toJson({
+  "schoolId": $input.schoolId,
+  "id": $ctx.stash.newId,
+  "type": $input.type,
+  "name": $input.name,
+  "sortOrder": $input.sortOrder
+})`
+    });
+
+    const updateLevelRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
+  },
+  "attributeValues": {
+    "type": $util.dynamodb.toDynamoDBJson($ctx.args.input.type),
+    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
+    "sortOrder": $util.dynamodb.toDynamoDBJson($ctx.args.input.sortOrder.toString())
+  },
+  "condition": {
+    "expression": "attribute_exists(#id)",
+    "expressionNames": { "#id": "id" }
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'UpdateLevelResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'updateLevel',
+      dataSourceName: 'LevelsDS',
+      requestMappingTemplate: updateLevelRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result)'
+    });
+
+    const deleteLevelRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "DeleteItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'DeleteLevelResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'deleteLevel',
+      dataSourceName: 'LevelsDS',
+      requestMappingTemplate: deleteLevelRequest,
+      responseMappingTemplate: '$util.toJson(true)'
+    });
+
+    const createClassYearRequest = tenantGuard + `
+#set($newId = $util.autoId())
+$util.qr($ctx.stash.put("newId", $newId))
+{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($newId)
+  },
+  "attributeValues": {
+    "levelId": $util.dynamodb.toDynamoDBJson($ctx.args.input.levelId),
+    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
+    "sortOrder": $util.dynamodb.toDynamoDBJson($ctx.args.input.sortOrder.toString())
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'CreateClassYearResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'createClassYear',
+      dataSourceName: 'ClassYearsDS',
+      requestMappingTemplate: createClassYearRequest,
+      responseMappingTemplate: `
+#set($input = $ctx.args.input)
+$util.toJson({
+  "schoolId": $input.schoolId,
+  "id": $ctx.stash.newId,
+  "levelId": $input.levelId,
+  "name": $input.name,
+  "sortOrder": $input.sortOrder
+})`
+    });
+
+    const updateClassYearRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
+  },
+  "attributeValues": {
+    "levelId": $util.dynamodb.toDynamoDBJson($ctx.args.input.levelId),
+    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
+    "sortOrder": $util.dynamodb.toDynamoDBJson($ctx.args.input.sortOrder.toString())
+  },
+  "condition": {
+    "expression": "attribute_exists(#id)",
+    "expressionNames": { "#id": "id" }
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'UpdateClassYearResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'updateClassYear',
+      dataSourceName: 'ClassYearsDS',
+      requestMappingTemplate: updateClassYearRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result)'
+    });
+
+    const deleteClassYearRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "DeleteItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'DeleteClassYearResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'deleteClassYear',
+      dataSourceName: 'ClassYearsDS',
+      requestMappingTemplate: deleteClassYearRequest,
+      responseMappingTemplate: '$util.toJson(true)'
+    });
+
+    const createClassArmRequest = tenantGuard + `
+#set($newId = $util.autoId())
+$util.qr($ctx.stash.put("newId", $newId))
+{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($newId)
+  },
+  "attributeValues": {
+    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name)
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'CreateClassArmResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'createClassArm',
+      dataSourceName: 'ClassArmsDS',
+      requestMappingTemplate: createClassArmRequest,
+      responseMappingTemplate: `
+#set($input = $ctx.args.input)
+$util.toJson({
+  "schoolId": $input.schoolId,
+  "id": $ctx.stash.newId,
+  "name": $input.name
+})`
+    });
+
+    const updateClassArmRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
+  },
+  "attributeValues": {
+    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name)
+  },
+  "condition": {
+    "expression": "attribute_exists(#id)",
+    "expressionNames": { "#id": "id" }
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'UpdateClassArmResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'updateClassArm',
+      dataSourceName: 'ClassArmsDS',
+      requestMappingTemplate: updateClassArmRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result)'
+    });
+
+    const deleteClassArmRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "DeleteItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'DeleteClassArmResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'deleteClassArm',
+      dataSourceName: 'ClassArmsDS',
+      requestMappingTemplate: deleteClassArmRequest,
+      responseMappingTemplate: '$util.toJson(true)'
+    });
+
+    const createClassGroupRequest = tenantGuard + `
+#set($newId = $util.autoId())
+$util.qr($ctx.stash.put("newId", $newId))
+{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($newId)
+  },
+  "attributeValues": {
+    "classYearId": $util.dynamodb.toDynamoDBJson($ctx.args.input.classYearId),
+    "classArmId": $util.dynamodb.toDynamoDBJson($ctx.args.input.classArmId),
+    "displayName": $util.dynamodb.toDynamoDBJson($ctx.args.input.displayName),
+    "classTeacherUserId": $util.dynamodb.toDynamoDBJson($ctx.args.input.classTeacherUserId)
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'CreateClassGroupResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'createClassGroup',
+      dataSourceName: 'ClassGroupsDS',
+      requestMappingTemplate: createClassGroupRequest,
+      responseMappingTemplate: `
+#set($input = $ctx.args.input)
+$util.toJson({
+  "schoolId": $input.schoolId,
+  "id": $ctx.stash.newId,
+  "classYearId": $input.classYearId,
+  "classArmId": $input.classArmId,
+  "displayName": $input.displayName,
+  "classTeacherUserId": $input.classTeacherUserId
+})`
+    });
+
+    const updateClassGroupRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
+  },
+  "attributeValues": {
+    "classYearId": $util.dynamodb.toDynamoDBJson($ctx.args.input.classYearId),
+    "classArmId": $util.dynamodb.toDynamoDBJson($ctx.args.input.classArmId),
+    "displayName": $util.dynamodb.toDynamoDBJson($ctx.args.input.displayName),
+    "classTeacherUserId": $util.dynamodb.toDynamoDBJson($ctx.args.input.classTeacherUserId)
+  },
+  "condition": {
+    "expression": "attribute_exists(#id)",
+    "expressionNames": { "#id": "id" }
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'UpdateClassGroupResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'updateClassGroup',
+      dataSourceName: 'ClassGroupsDS',
+      requestMappingTemplate: updateClassGroupRequest,
+      responseMappingTemplate: '$util.toJson($ctx.result)'
+    });
+
+    const deleteClassGroupRequest = tenantGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "DeleteItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
+  }
+}`;
+
+    new appsync.CfnResolver(this, 'DeleteClassGroupResolver', {
+      apiId,
+      typeName: 'Mutation',
+      fieldName: 'deleteClassGroup',
+      dataSourceName: 'ClassGroupsDS',
+      requestMappingTemplate: deleteClassGroupRequest,
+      responseMappingTemplate: '$util.toJson(true)'
+    });
 
     const attendanceSessionsByClassAndDayRequest = tenantGuard + `
 #set($tenantSchool = "")

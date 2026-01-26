@@ -140,6 +140,10 @@ export default function AdminOverviewPage() {
             <span className="status-pill status-in_progress">Term live</span>
             <span className="hero-note">Last sync: 2 mins ago</span>
           </div>
+          <div className="hero-meta">
+            <span className="status-pill">Campus: Demo Academy</span>
+            <span className="status-pill">Term: 2nd term 2024</span>
+          </div>
           <div className="admin-header-actions">
             <a className="button primary" href={primaryAction.href}>
               {primaryAction.label}
@@ -225,6 +229,14 @@ export default function AdminOverviewPage() {
                 </div>
               </div>
             ))}
+            {workQueue.length === 0 && (
+              <div className="work-item muted">
+                <div>
+                  <strong>No open tasks</strong>
+                  <small className="muted">You’re caught up. Check support or payments for new items.</small>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

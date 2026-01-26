@@ -42,6 +42,7 @@ exports.handler = async (event) => {
         id: receiptNo,
         receiptNo,
         invoiceId: detail.invoiceId || payload.invoiceId || null,
+        paymentTxnId: detail.paymentTxnId || payload.paymentTxnId || null,
         paymentReference: detail.reference || payload.reference || null,
         amount: detail.amount || payload.amount || 0,
         currency: detail.currency || payload.currency || 'NGN',

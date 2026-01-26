@@ -11,6 +11,12 @@ export const graphqlFetch = async <T>(
 ) => {
   const endpoint = usePublic ? "/api/public-graphql" : "/api/graphql";
   const hasJwt = typeof token === "string" && token.includes(".");
+  if (variables?.input && typeof variables.input === "object") {
+    const input = variables.input as Record<string, unknown>;
+    if (input.configJson && typeof input.configJson === "object") {
+      input.configJson = JSON.stringify(input.configJson);
+    }
+  }
   const res = await fetch(endpoint, {
     method: "POST",
     headers: {

@@ -25,7 +25,7 @@ type FeeAdjustment = {
   id: string;
   type: string;
   amount: number;
-  note?: string | null;
+  reason?: string | null;
   createdAt?: string | null;
 };
 
@@ -95,7 +95,7 @@ const invoiceQuery = `query InvoiceByNumber($schoolId: ID!, $invoiceNo: String!)
       id
       type
       amount
-      note
+      reason
       createdAt
     }
   }
@@ -614,7 +614,7 @@ export default function InvoiceClient({ invoiceNo }: { invoiceNo: string }) {
                 <div key={adj.id} className="line-item">
                   <div>
                     <strong>{adj.type}</strong>
-                    <span>{adj.note || "N/A"}</span>
+                    <span>{adj.reason || "N/A"}</span>
                   </div>
                   <span>{money(adj.amount)}</span>
                 </div>

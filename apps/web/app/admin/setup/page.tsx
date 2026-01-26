@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { decodeSchoolId } from "../../components/auth-utils";
 import { graphqlFetch } from "../../components/graphql";
@@ -613,6 +614,7 @@ export function SetupWizard({ initialSectionId, initialSubStep }: SetupWizardPro
   const [manualPaymentsEnabled, setManualPaymentsEnabled] = useState(true);
   const [paymentProvider, setPaymentProvider] = useState("PAYSTACK");
   const [paymentStatusNote, setPaymentStatusNote] = useState("");
+  const [paystackConfigured, setPaystackConfigured] = useState(false);
   const [smsSenderName, setSmsSenderName] = useState("ClassPoint");
   const [smsChannel, setSmsChannel] = useState("SMS");
   const [smsTemplateInvoice, setSmsTemplateInvoice] = useState(
@@ -648,6 +650,62 @@ export function SetupWizard({ initialSectionId, initialSubStep }: SetupWizardPro
   const canInviteTeacher = Boolean(
     teacherName && (teacherEmail || teacherPhone) && teacherEmailOk && teacherPhoneOk
   );
+
+  useEffect(() => {
+    if (!token || !schoolId) return;
+    let active = true;
+    const loadPaymentProviders = async () => {
+      try {
+        const data = await graphqlFetch<{ providerConfigsBySchool: { id: string; type: string; providerName: string; status: string; configJson?: unknown }[] }>(
+          `query ProviderConfigsBySchool($schoolId: ID!, $limit: Int) {
+            providerConfigsBySchool(schoolId: $schoolId, limit: $limit) {
+              id
+              type
+              providerName
+              status
+              configJson
+            }
+          }`,
+          { schoolId, limit: 100 },
+          token
+        );
+        if (!active) return;
+        const configs = data.providerConfigsBySchool || [];
+        const paystackConfig = configs.find(
+          (config) =>
+            ["PAYMENT_GATEWAY", "PAYMENTS"].includes(String(config.type || "").toUpperCase()) &&
+            String(config.providerName || "").toUpperCase() === "PAYSTACK" &&
+            String(config.status || "").toUpperCase() === "ACTIVE"
+        );
+        const parsedConfig =
+          typeof paystackConfig?.configJson === "string"
+            ? (() => {
+                try {
+                  return JSON.parse(paystackConfig.configJson);
+                } catch {
+                  return {};
+                }
+              })()
+            : paystackConfig?.configJson || {};
+        const environment =
+          String(parsedConfig?.environment || "").toLowerCase() === "live" ? "live" : "test";
+        const hasEnvKeys =
+          environment === "live"
+            ? Boolean(parsedConfig?.publicKey_live && parsedConfig?.secretKey_live)
+            : Boolean(parsedConfig?.publicKey_test && parsedConfig?.secretKey_test);
+        const hasLegacyKeys = Boolean(parsedConfig?.publicKey && (parsedConfig?.secretKey || parsedConfig?.webhookSecret));
+        const hasKeys = hasEnvKeys || hasLegacyKeys;
+        setPaystackConfigured(Boolean(paystackConfig && hasKeys));
+      } catch {
+        if (!active) return;
+        setPaystackConfigured(false);
+      }
+    };
+    loadPaymentProviders();
+    return () => {
+      active = false;
+    };
+  }, [token, schoolId]);
   const {
     hasRequiredMappings,
     classPlacementMapped,
@@ -1218,6 +1276,7 @@ export function SetupWizard({ initialSectionId, initialSubStep }: SetupWizardPro
       items: [
         { label: "Manual payments enabled", ok: manualPaymentsEnabled },
         { label: "Provider selected", ok: Boolean(paymentProvider) },
+        { label: "Paystack configured", ok: paystackConfigured },
         { label: "Payments setup saved", ok: paymentsSaved }
       ]
     },
@@ -4724,7 +4783,7 @@ export function SetupWizard({ initialSectionId, initialSubStep }: SetupWizardPro
             Set your school name, logo, and contact details. Parents will see this on the portal and receipts.
           </p>
           <div className="wizard-note">
-            Use a clear name like "Great Heights Primary School" and a square logo if possible.
+            Use a clear name like &quot;Great Heights Primary School&quot; and a square logo if possible.
           </div>
           {renderChecklist("setup-branding", "Branding requirements")}
           <div className="wizard-stack">
@@ -4749,11 +4808,14 @@ export function SetupWizard({ initialSectionId, initialSubStep }: SetupWizardPro
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   {brandLogo && !logoLoadError ? (
-                    <img
+                    <Image
                       src={brandLogo}
                       alt="School logo preview"
+                      width={40}
+                      height={40}
                       style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }}
                       onError={() => setLogoLoadError(true)}
+                      unoptimized
                     />
                   ) : (
                     <span className="badge">Logo</span>
@@ -4907,11 +4969,14 @@ export function SetupWizard({ initialSectionId, initialSubStep }: SetupWizardPro
                   <div className="preview-header">
                     <div className="preview-logo">
                       {brandLogo && !logoLoadError ? (
-                        <img
+                        <Image
                           src={brandLogo}
                           alt="School logo preview"
+                          width={40}
+                          height={40}
                           style={{ width: 40, height: 40, objectFit: "cover" }}
                           onError={() => setLogoLoadError(true)}
+                          unoptimized
                         />
                       ) : (
                         <span>{(brandName || "CP").slice(0, 2).toUpperCase()}</span>
@@ -5083,7 +5148,7 @@ export function SetupWizard({ initialSectionId, initialSubStep }: SetupWizardPro
                 </a>
               </div>
               <div className="wizard-note">
-                Pick the term and class, save the schedule, then set amounts in "Amounts and due dates" below.
+                Pick the term and class, save the schedule, then set amounts in &quot;Amounts and due dates&quot; below.
               </div>
             </div>
             <div className="wizard-card">
@@ -5743,6 +5808,15 @@ export function SetupWizard({ initialSectionId, initialSubStep }: SetupWizardPro
             </div>
             <div className="line-item">
               <span>Step 5: Review and create the structure.</span>
+            </div>
+          </div>
+          <div className="wizard-progress">
+            <div>
+              <strong>Step {academicWizardStep} of 5</strong>
+              <small className="muted">School type → Calendar → Classes → Subjects → Review</small>
+            </div>
+            <div className="wizard-progress-bar">
+              <span style={{ width: `${(academicWizardStep / 5) * 100}%` }} />
             </div>
           </div>
           {isAcademicStep && renderChecklist("setup-academic", "Academic requirements")}
@@ -6761,7 +6835,10 @@ export function SetupWizard({ initialSectionId, initialSubStep }: SetupWizardPro
                       <strong>Drop CSV here or click to upload</strong>
                       <small>Use the template to avoid validation errors.</small>
                       <small>Supported format: CSV (UTF-8).</small>
-                      <small>Tip: Use names like "Primary 1A", "1st Term", "2025/2026" and keep phones as text.</small>
+                      <small>
+                        Tip: Use names like &quot;Primary 1A&quot;, &quot;1st Term&quot;, &quot;2025/2026&quot; and
+                        keep phones as text.
+                      </small>
                     </div>
                   </div>
                   <label className="line-item">
@@ -7700,7 +7777,3 @@ export function SetupWizard({ initialSectionId, initialSubStep }: SetupWizardPro
 export default function SetupPage() {
   return <SetupWizard />;
 }
-
-
-
-

@@ -45,6 +45,8 @@ Use this checklist to drive execution. Tick items as they are completed.
 ## Payments & Reconciliation (Phase 3)
 - [x] PaymentIntent creation + gateway handoff (Paystack/Flutterwave); store references.
 - [x] Webhook handler: signature verify, idempotent, PaymentTransaction CONFIRMED, atomic Invoice update, emit `payment.confirmed`.
+- [x] PaymentIntent lifecycle updates (INITIATED -> REDIRECTED -> SUCCEEDED/FAILED) + invoice status updates (ISSUED -> PARTIALLY_PAID/PAID).
+- [x] Parent callback UX for payment confirmation + receipt visibility (Paystack test flow).
 - [x] Receipt number sequence per school; receipt record (PDF optional).
 - [x] Manual/offline payments: proof upload (presigned), review/approve/reject with audit trail.
 - [x] Installment plans (optional): create plan/installments, overdue detection.
@@ -99,7 +101,7 @@ Use this checklist to drive execution. Tick items as they are completed.
 - [ ] Load tests: imports (5k students), invoice generation bursts.
 
 ## Release Flow
-- [ ] Dev deploy + smoke tests.
+- [x] Dev deploy + smoke tests.
 - [ ] Stage regression (multi-tenant scenarios) + synthetic journeys.
 - [ ] Prod deploy via pipeline with manual gate; feature flags ready to disable risky features.
 - [ ] Post-deploy checks: health endpoints, logs, alarms, synthetics.

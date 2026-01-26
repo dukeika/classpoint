@@ -78,3 +78,17 @@ Run:
 ```
 node scripts/query-recipients.js --url https://<api>/graphql --token "<ID token>" --invoice <invoiceId> --limit 20
 ```
+
+## Payment smoke check
+`scripts/payment-smoke.js` checks invoice/payment intent/payment transaction status for a given invoice.
+
+Required env:
+- `GRAPHQL_URL` or `APPSYNC_URL`
+- `AUTH_TOKEN` or `ID_TOKEN`
+- `INVOICE_ID`
+- `SCHOOL_ID`
+
+Run:
+```
+node scripts/payment-smoke.js
+```

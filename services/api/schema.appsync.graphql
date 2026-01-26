@@ -98,9 +98,11 @@ enum PaymentProvider {
 enum PaymentIntentStatus {
   INITIATED
   PENDING
+  REDIRECTED
   SUCCEEDED
   FAILED
   CANCELLED
+  EXPIRED
 }
 
 enum PaymentMethod {
@@ -114,8 +116,14 @@ enum PaymentMethod {
 enum PaymentTxnStatus {
   PENDING
   CONFIRMED
+  FAILED
   REVERSED
   REFUNDED
+}
+
+enum PaymentTransactionType {
+  SCHOOL_FEE
+  SUBSCRIPTION
 }
 
 enum ProofStatus {
@@ -582,15 +590,18 @@ type Invoice {
   sessionId: ID!
   termId: ID!
   classGroupId: ID
+  feeScheduleId: ID
   status: InvoiceStatus!
   issuedAt: AWSDateTime
   dueAt: AWSDateTime
+  currency: String
   requiredSubtotal: Float!
   optionalSubtotal: Float!
   discountTotal: Float!
   penaltyTotal: Float!
   amountPaid: Float!
   amountDue: Float!
+  lastProcessedAt: AWSDateTime
   lines: [InvoiceLine]
   payments: [PaymentTransaction]
   adjustments: [FeeAdjustment]
@@ -619,6 +630,10 @@ type PaymentIntent {
   currency: String!
   status: PaymentIntentStatus!
   externalReference: String
+  providerReference: String
+  redirectedAt: AWSDateTime
+  confirmedAt: AWSDateTime
+  failedAt: AWSDateTime
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime
 }
@@ -626,16 +641,27 @@ type PaymentIntent {
 type PaymentTransaction {
   id: ID!
   schoolId: ID!
-  invoiceId: ID!
+  invoiceId: ID
+  subscriptionId: ID
   paymentIntentId: ID
-  method: PaymentMethod!
+  provider: PaymentProvider
+  method: PaymentMethod
   amount: Float!
+  grossAmount: Float
+  netAmount: Float
+  providerFee: Float
   currency: String!
   status: PaymentTxnStatus!
   paidAt: AWSDateTime
   reference: String
+  providerReference: String
   receiptNo: String
   recordedByUserId: ID
+  type: PaymentTransactionType
+  environment: String
+  metadata: AWSJSON
+  providerResponse: AWSJSON
+  processedAt: AWSDateTime
   proofs: [ManualPaymentProof]
   allocations: [PaymentAllocation]
 }
@@ -645,6 +671,7 @@ type Receipt {
   schoolId: ID!
   receiptNo: String!
   invoiceId: ID!
+  paymentTxnId: ID
   paymentReference: String
   amount: Float!
   currency: String!
@@ -881,6 +908,7 @@ type Query {
   usersBySchool(schoolId: ID!, userType: UserType!, limit: Int): [User]
     rolesBySchool(schoolId: ID!, limit: Int): [Role]
     rolePermissionsByRole(roleId: ID!, limit: Int): [RolePermission]
+    permissions(limit: Int): [Permission]
     userRolesByUser(userId: ID!, limit: Int): [UserRole]
     auditBySchool(
       schoolId: ID!
@@ -892,11 +920,13 @@ type Query {
     ): AuditEventConnection
     feeSchedulesByTerm(termId: ID!, classYearId: ID!, limit: Int): [FeeSchedule]
   feeScheduleLinesBySchedule(feeScheduleId: ID!, limit: Int): [FeeScheduleLine]
+  discountRulesBySchool(schoolId: ID!, limit: Int): [DiscountRule]
   invoicesByStudent(studentId: ID!, termId: ID!, limit: Int): [Invoice]
   invoicesByTermClassGroup(termId: ID!, classGroupId: ID!, limit: Int): [Invoice]
   invoiceByNumber(schoolId: ID!, invoiceNo: String!): Invoice
   invoiceById(schoolId: ID!, id: ID!): Invoice
   invoiceLinesByInvoice(invoiceId: ID!, limit: Int): [InvoiceLine]
+  installmentPlanByInvoice(invoiceId: ID!, limit: Int): [InstallmentPlan]
   paymentIntentsByInvoice(invoiceId: ID!, limit: Int): [PaymentIntent]
   paymentsByInvoice(invoiceId: ID!, limit: Int): [PaymentTransaction]
   paymentsBySchool(schoolId: ID!, limit: Int): [PaymentTransaction]
@@ -917,6 +947,7 @@ type Query {
   feeItemsBySchool(schoolId: ID!, limit: Int): [FeeItem]
   providerConfigsBySchool(schoolId: ID!, limit: Int): [ProviderConfig]
   plans(limit: Int): [Plan]
+  planById(id: ID!): Plan
   addOns(limit: Int): [AddOn]
   templatesBySchool(schoolId: ID!, limit: Int): [MessageTemplate]
   campaignsBySchool(schoolId: ID!, limit: Int): [MessageCampaign]
@@ -1030,6 +1061,8 @@ type Mutation {
   createInvoice(input: CreateInvoiceInput!): Invoice
   selectInvoiceOptionalItems(input: SelectInvoiceOptionalItemsInput!): Invoice
   createPaymentIntent(input: CreatePaymentIntentInput!): PaymentIntent
+  createPaymentTransaction(input: CreatePaymentTransactionInput!): PaymentTransaction
+  updatePaymentIntent(input: UpdatePaymentIntentInput!): PaymentIntent
   createManualPaymentProofUploadUrl(input: CreateManualPaymentProofUploadUrlInput!): PresignedUpload
   submitManualPaymentProof(input: SubmitManualPaymentProofInput!): ManualPaymentProof
   reviewManualPaymentProof(input: ReviewManualPaymentProofInput!): ManualPaymentProof
@@ -1567,7 +1600,39 @@ input CreatePaymentIntentInput {
   provider: PaymentProvider!
   amount: Float!
   currency: String!
+  status: PaymentIntentStatus!
   externalReference: String
+}
+
+input UpdatePaymentIntentInput {
+  schoolId: ID!
+  id: ID!
+  status: PaymentIntentStatus
+  externalReference: String
+  providerReference: String
+  redirectedAt: AWSDateTime
+  confirmedAt: AWSDateTime
+  failedAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+input CreatePaymentTransactionInput {
+  schoolId: ID!
+  invoiceId: ID
+  subscriptionId: ID
+  paymentIntentId: ID
+  provider: PaymentProvider!
+  method: PaymentMethod
+  amount: Float!
+  currency: String!
+  status: PaymentTxnStatus!
+  reference: String!
+  providerReference: String
+  type: PaymentTransactionType
+  environment: String
+  metadata: AWSJSON
+  providerResponse: AWSJSON
+  processedAt: AWSDateTime
 }
 
 input CreateManualPaymentProofUploadUrlInput {

@@ -1,9 +1,9 @@
 
-## ClassPoint UI Modernization Spec (School Admin Dashboard + Setup Wizard)
+## ClassPoint UI Modernization Spec (School Admin + Bursar Dashboard + Setup Wizard)
 
 ### Goal
 
-Make the School Admin experience feel like a **modern operating system**:
+Make the School Admin and Bursar experience feel like a **modern operating system**:
 
 * clean, premium, trustworthy
 * fast to understand
@@ -77,9 +77,9 @@ Make the School Admin experience feel like a **modern operating system**:
 
 ---
 
-# 3) School Admin Dashboard redesign (what it should look like)
+# 3) School Admin + Bursar Dashboard redesign (what it should look like)
 
-## A) Dashboard structure (top to bottom)
+## A) Shared dashboard structure (top to bottom)
 
 ### 1) Header row
 
@@ -130,7 +130,13 @@ A clean list:
 * “Invoice batch generated — JSS2 — 63 students”
   Each item links to its record.
 
-## B) Smart behavior
+## B) Bursar dashboard focus (same layout, different data)
+
+* KPI emphasis: Collected (this term), Outstanding, Defaulters, Proofs pending, Refunds/chargebacks (if used)
+* Work Queue emphasis: proofs pending, failed payments, defaulters by class, overdue schedules
+* Quick Actions emphasis: Generate invoices, Send reminders, Review proofs, Export collections
+
+## C) Smart behavior
 
 * If setup is incomplete, the dashboard shows a prominent **Setup progress card**:
 
@@ -193,6 +199,11 @@ Current approach (many setup cards visible at once) is overwhelming and not mobi
 
 **Step 5: Fees Setup**
 
+* This step is a sub-wizard shared by Admin and Bursar:
+  * Create fee items
+  * Build schedule
+  * Preview
+  * Generate invoices
 * Fee items catalog (Tuition, PTA, Books, etc.)
 * Fee schedules per class/year per term
 * Parent fee breakdown preview (must look clean)
@@ -257,7 +268,7 @@ At bottom of every step:
 * One column forms on mobile.
 * Use step sub-pages for long forms (e.g., Fees Setup):
 
-  * “Fee Items” → “Schedules” → “Preview” → “Publish”
+  * “Create fee items” → “Build schedule” → “Preview” → “Generate invoices”
 * Use large touch targets and clear spacing.
 
 ### C) Lists and tables
@@ -328,7 +339,7 @@ At bottom of every step:
 
 # 8) Deliverables I want from you (developer)
 
-1. New `AdminDashboard` layout with:
+1. New `AdminDashboard` and `BursarDashboard` layout with:
 
    * KPI tiles
    * Work Queue
@@ -343,7 +354,11 @@ At bottom of every step:
    * completion tracking + readiness review
    * preview panels for branding + fees
 
-3. Consistent component library:
+3. Fees Setup sub-wizard:
+
+   * Create fee items → build schedule → preview → generate invoices
+
+4. Consistent component library:
 
    * `KpiCard`, `StatusPill`, `WorkQueueItem`, `WizardStepper`, `StickyBottomActions`, `EmptyState`
 

@@ -382,13 +382,13 @@ Completion criteria:
 
 ## Goal
 
-Create fee items and schedules per class/year with a parent preview.
+Create fee items, build schedules, preview, and generate invoices.
 
-This is a 3-sub-step flow:
+This is a 4-sub-step flow:
 
-* Fee Items → Schedules → Preview & Publish
+* Create fee items → Build schedule → Preview → Generate invoices
 
-### G1) Fee Items
+### G1) Create fee items
 
 List with categories:
 
@@ -411,7 +411,7 @@ Actions:
 * Edit item
 * Archive item (confirm dialog)
 
-### G2) Fee Schedules
+### G2) Build schedule
 
 Controls at top:
 
@@ -435,7 +435,7 @@ Right panel (desktop) / accordion (mobile):
   * Optional subtotal
   * Grand total
 
-### G3) Parent Preview & Publish (must-have)
+### G3) Preview (must-have)
 
 Preview shows:
 
@@ -446,12 +446,30 @@ Preview shows:
   * Totals
   * Due date info
   * “Pay now” button mock
-* “Publish schedules” button
+* “Continue to invoice generation” button
 
 Completion criteria:
 
 * At least one schedule exists for current term
 * Parent preview confirmed
+
+### G4) Generate invoices
+
+Controls:
+
+* Class group selector (required)
+* Skip duplicates toggle (default ON)
+* “Generate invoices” button
+
+Results:
+
+* Created count
+* Skipped duplicates count
+* Link to invoices list
+
+Completion criteria:
+
+* Invoice batch generated OR explicit “Generate later” confirmation
 
 ---
 
@@ -632,4 +650,3 @@ Completion criteria:
 
   * wizard stepper becomes top progress + steps drawer
   * sticky bottom bar for actions
-

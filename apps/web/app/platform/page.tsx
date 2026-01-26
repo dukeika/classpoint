@@ -18,10 +18,10 @@ export default function PlatformPage() {
           </div>
           <div className="platform-banner-actions">
             <a className="button primary" href={appLoginUrl}>
-              Sign in to HQ
+              Open HQ dashboard
             </a>
             <a className="button secondary" href={demoAdminUrl}>
-              Switch to school admin
+              View a school admin site
             </a>
           </div>
         </div>
@@ -33,11 +33,11 @@ export default function PlatformPage() {
           <div className="platform-banner-grid">
             <div>
               <strong>98.1%</strong>
-              <span>Delivery rate</span>
+              <span>Message delivery</span>
             </div>
             <div>
               <strong>1.8s</strong>
-              <span>Avg response time</span>
+              <span>API response time</span>
             </div>
             <div>
               <strong>4</strong>
@@ -56,12 +56,12 @@ export default function PlatformPage() {
         <div className="platform-kpi">
           <span>Payment volume</span>
           <strong>NGN 9.4m</strong>
-          <small className="muted">term-to-date</small>
+          <small className="muted">Term-to-date</small>
         </div>
         <div className="platform-kpi">
           <span>Messaging success</span>
           <strong>98.1%</strong>
-          <small className="muted">last 24 hours</small>
+          <small className="muted">Last 24 hours</small>
         </div>
         <div className="platform-kpi">
           <span>Open support</span>

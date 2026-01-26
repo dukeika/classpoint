@@ -131,6 +131,17 @@ const loadInvoiceLines = async (invoiceId) => {
   return res.Items || [];
 };
 
+const loadFeeSchedule = async (schoolId, feeScheduleId) => {
+  if (!TABLES.feeSchedules || !feeScheduleId) return null;
+  const res = await dynamo.send(
+    new GetCommand({
+      TableName: TABLES.feeSchedules,
+      Key: { schoolId, id: feeScheduleId }
+    })
+  );
+  return res.Item || null;
+};
+
 const getAdjustments = async (invoiceId) => {
   if (!TABLES.adjustments) return [];
   const res = await dynamo.send(
@@ -300,7 +311,8 @@ const updateTotals = async (schoolId, invoice, paid, adjustments) => {
       .reduce((sum, l) => sum + (l.amount || 0), 0) || invoice.optionalSubtotal || 0;
   const discountTotal = computeDiscounts(adjustments, requiredSubtotal);
   const penaltyTotal = computePenalty(adjustments);
-  const amountDue = requiredSubtotal + optionalSubtotal - discountTotal + penaltyTotal - paid;
+  const totalDue = requiredSubtotal + optionalSubtotal - discountTotal + penaltyTotal;
+  const amountDue = Math.max(totalDue - paid, 0);
 
   // Enforce minimum first payment 30% of required subtotal by default (configurable via payload)
   const minFirstPercent = invoice.minFirstPercent || 30;
@@ -312,24 +324,45 @@ const updateTotals = async (schoolId, invoice, paid, adjustments) => {
   await ensureInstallmentPlan(schoolId, invoice, requiredSubtotal, installmentTemplate);
   await updateInstallmentsStatus(schoolId, invoice.id, paid);
 
+  let status = invoice.status || 'ISSUED';
+  if (status !== 'VOID') {
+    if (amountDue <= 0 && totalDue > 0) {
+      status = 'PAID';
+    } else if (paid > 0) {
+      status = 'PARTIALLY_PAID';
+    } else {
+      status = 'ISSUED';
+    }
+  }
+
+  let resolvedCurrency = invoice.currency;
+  if (!resolvedCurrency && invoice.feeScheduleId) {
+    const schedule = await loadFeeSchedule(schoolId, invoice.feeScheduleId);
+    resolvedCurrency = schedule?.currency || resolvedCurrency;
+  }
+  if (!resolvedCurrency) {
+    resolvedCurrency = 'NGN';
+  }
+
   await dynamo.send(
     new UpdateCommand({
       TableName: TABLES.invoices,
       Key: { schoolId, id: invoice.id },
       UpdateExpression:
-        'SET amountPaid = :paid, amountDue = :due, lastProcessedAt = :now, #status = :status, requiredSubtotal = :req, optionalSubtotal = :opt, discountTotal = :disc, penaltyTotal = :pen, minFirstAmount = :minFirst, belowMinFirst = :below',
+        'SET amountPaid = :paid, amountDue = :due, lastProcessedAt = :now, #status = :status, requiredSubtotal = :req, optionalSubtotal = :opt, discountTotal = :disc, penaltyTotal = :pen, minFirstAmount = :minFirst, belowMinFirst = :below, currency = :currency',
       ExpressionAttributeNames: { '#status': 'status' },
       ExpressionAttributeValues: {
         ':paid': paid,
-        ':due': amountDue < 0 ? 0 : amountDue,
+        ':due': amountDue,
         ':now': new Date().toISOString(),
-        ':status': amountDue <= 0 ? 'PAID' : 'PARTIALLY_PAID',
+        ':status': status,
         ':req': requiredSubtotal,
         ':opt': optionalSubtotal,
         ':disc': discountTotal,
         ':pen': penaltyTotal,
         ':minFirst': minFirstAmount,
-        ':below': belowMinFirst
+        ':below': belowMinFirst,
+        ':currency': resolvedCurrency
       }
     })
   );
@@ -339,7 +372,7 @@ const updateTotals = async (schoolId, invoice, paid, adjustments) => {
     optionalSubtotal,
     discountTotal,
     penaltyTotal,
-    amountDue: amountDue < 0 ? 0 : amountDue,
+    amountDue,
     amountPaid: paid
   };
 };

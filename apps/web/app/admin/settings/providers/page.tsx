@@ -36,14 +36,33 @@ const parseConfig = (value: string) => {
 export default function ProviderConfigsPage() {
   const { token } = useStaffAuth();
   const schoolId = useMemo(() => decodeSchoolId(token), [token]);
+  const callbackUrl = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return `${window.location.origin}/portal/payments/callback`;
+  }, []);
+  const webhookUrl =
+    process.env.NEXT_PUBLIC_PAYSTACK_SCHOOL_WEBHOOK_URL || process.env.NEXT_PUBLIC_PAYMENTS_WEBHOOK_URL || "";
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [providerType, setProviderType] = useState("PAYMENTS");
+  const [providerType, setProviderType] = useState("PAYMENT_GATEWAY");
   const [providerName, setProviderName] = useState("PAYSTACK");
   const [providerStatus, setProviderStatus] = useState("ACTIVE");
-  const [configText, setConfigText] = useState("{\n  \"secretKey\": \"\",\n  \"publicKey\": \"\"\n}");
+  const [paystackConfig, setPaystackConfig] = useState({
+    environment: "test",
+    publicKey_test: "",
+    secretKey_test: "",
+    publicKey_live: "",
+    secretKey_live: "",
+    webhookSecret: "",
+    callbackUrl: "",
+    splitCode: "",
+    platformFeePercent: "0"
+  });
+  const [configText, setConfigText] = useState(
+    "{\n  \"environment\": \"test\",\n  \"publicKey_test\": \"\",\n  \"secretKey_test\": \"\",\n  \"publicKey_live\": \"\",\n  \"secretKey_live\": \"\",\n  \"webhookSecret\": \"\",\n  \"callbackUrl\": \"\",\n  \"splitCode\": \"\",\n  \"platformFeePercent\": 0\n}"
+  );
 
   const loadConfigs = async () => {
     if (!token || !schoolId) return;
@@ -80,19 +99,58 @@ export default function ProviderConfigsPage() {
 
   const resetForm = () => {
     setEditingId(null);
-    setProviderType("PAYMENTS");
+    setProviderType("PAYMENT_GATEWAY");
     setProviderName("PAYSTACK");
     setProviderStatus("ACTIVE");
-    setConfigText("{\n  \"secretKey\": \"\",\n  \"publicKey\": \"\"\n}");
+    setPaystackConfig({
+      environment: "test",
+      publicKey_test: "",
+      secretKey_test: "",
+      publicKey_live: "",
+      secretKey_live: "",
+      webhookSecret: "",
+      callbackUrl: "",
+      splitCode: "",
+      platformFeePercent: "0"
+    });
+    setConfigText(
+      "{\n  \"environment\": \"test\",\n  \"publicKey_test\": \"\",\n  \"secretKey_test\": \"\",\n  \"publicKey_live\": \"\",\n  \"secretKey_live\": \"\",\n  \"webhookSecret\": \"\",\n  \"callbackUrl\": \"\",\n  \"splitCode\": \"\",\n  \"platformFeePercent\": 0\n}"
+    );
+  };
+
+  const copyValue = async (value: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setStatus("Copied to clipboard.");
+    } catch (_err) {
+      setStatus("Copy failed. Select and copy manually.");
+    }
   };
 
   const saveConfig = async () => {
     if (!token || !schoolId || !providerType || !providerName) return;
-    const parsed = parseConfig(configText);
+    const isPaystack = providerName.toUpperCase() === "PAYSTACK";
+    const parsed = isPaystack
+      ? {
+          environment: paystackConfig.environment,
+          publicKey_test: paystackConfig.publicKey_test?.trim() || "",
+          secretKey_test: paystackConfig.secretKey_test?.trim() || "",
+          publicKey_live: paystackConfig.publicKey_live?.trim() || "",
+          secretKey_live: paystackConfig.secretKey_live?.trim() || "",
+          webhookSecret: paystackConfig.webhookSecret?.trim() || "",
+          callbackUrl: paystackConfig.callbackUrl?.trim() || callbackUrl || "",
+          splitCode: paystackConfig.splitCode?.trim() || "",
+          platformFeePercent: Number.isFinite(Number(paystackConfig.platformFeePercent))
+            ? Number(paystackConfig.platformFeePercent)
+            : 0
+        }
+      : parseConfig(configText);
     if (!parsed) {
       setStatus("Config JSON is invalid.");
       return;
     }
+    const configPayload = JSON.stringify(parsed);
     setLoading(true);
     setStatus("");
     try {
@@ -107,7 +165,7 @@ export default function ProviderConfigsPage() {
               id: editingId,
               type: providerType,
               providerName,
-              configJson: parsed,
+              configJson: configPayload,
               status: providerStatus
             }
           },
@@ -124,7 +182,7 @@ export default function ProviderConfigsPage() {
               schoolId,
               type: providerType,
               providerName,
-              configJson: parsed,
+              configJson: configPayload,
               status: providerStatus
             }
           },
@@ -146,7 +204,25 @@ export default function ProviderConfigsPage() {
     setProviderType(config.type);
     setProviderName(config.providerName);
     setProviderStatus(config.status);
-    setConfigText(stringifyConfig(config.configJson));
+    const raw = stringifyConfig(config.configJson);
+    const parsed = parseConfig(raw) || {};
+    if (String(config.providerName || "").toUpperCase() === "PAYSTACK") {
+      const environment =
+        String(parsed.environment || "").toLowerCase() === "live" ? "live" : "test";
+      setPaystackConfig({
+        environment,
+        publicKey_test: String(parsed.publicKey_test || parsed.publicKey || ""),
+        secretKey_test: String(parsed.secretKey_test || parsed.secretKey || ""),
+        publicKey_live: String(parsed.publicKey_live || ""),
+        secretKey_live: String(parsed.secretKey_live || ""),
+        webhookSecret: String(parsed.webhookSecret || ""),
+        callbackUrl: String(parsed.callbackUrl || ""),
+        splitCode: String(parsed.splitCode || ""),
+        platformFeePercent: String(parsed.platformFeePercent || 0)
+      });
+    } else {
+      setConfigText(raw);
+    }
   };
 
   const deleteConfig = async (id: string) => {
@@ -205,12 +281,117 @@ export default function ProviderConfigsPage() {
               value={providerStatus}
               onChange={(event) => setProviderStatus(event.target.value)}
             />
-            <textarea
-              rows={8}
-              placeholder="Config JSON"
-              value={configText}
-              onChange={(event) => setConfigText(event.target.value)}
-            />
+            {providerName.toUpperCase() === "PAYSTACK" ? (
+              <>
+                <select
+                  value={paystackConfig.environment}
+                  onChange={(event) =>
+                    setPaystackConfig((prev) => ({ ...prev, environment: event.target.value }))
+                  }
+                >
+                  <option value="test">Paystack environment: test</option>
+                  <option value="live">Paystack environment: live</option>
+                </select>
+                <input
+                  placeholder="Test public key"
+                  value={paystackConfig.publicKey_test}
+                  onChange={(event) =>
+                    setPaystackConfig((prev) => ({ ...prev, publicKey_test: event.target.value }))
+                  }
+                />
+                <input
+                  placeholder="Test secret key"
+                  value={paystackConfig.secretKey_test}
+                  onChange={(event) =>
+                    setPaystackConfig((prev) => ({ ...prev, secretKey_test: event.target.value }))
+                  }
+                />
+                <input
+                  placeholder="Live public key"
+                  value={paystackConfig.publicKey_live}
+                  onChange={(event) =>
+                    setPaystackConfig((prev) => ({ ...prev, publicKey_live: event.target.value }))
+                  }
+                />
+                <input
+                  placeholder="Live secret key"
+                  value={paystackConfig.secretKey_live}
+                  onChange={(event) =>
+                    setPaystackConfig((prev) => ({ ...prev, secretKey_live: event.target.value }))
+                  }
+                />
+                <input
+                  placeholder="Webhook secret (optional)"
+                  value={paystackConfig.webhookSecret}
+                  onChange={(event) =>
+                    setPaystackConfig((prev) => ({ ...prev, webhookSecret: event.target.value }))
+                  }
+                />
+                <input
+                  placeholder="Split code (optional)"
+                  value={paystackConfig.splitCode}
+                  onChange={(event) =>
+                    setPaystackConfig((prev) => ({ ...prev, splitCode: event.target.value }))
+                  }
+                />
+                <input
+                  placeholder="Platform fee percent (optional)"
+                  type="number"
+                  value={paystackConfig.platformFeePercent}
+                  onChange={(event) =>
+                    setPaystackConfig((prev) => ({
+                      ...prev,
+                      platformFeePercent: event.target.value
+                    }))
+                  }
+                />
+              </>
+            ) : (
+              <textarea
+                rows={8}
+                placeholder="Config JSON"
+                value={configText}
+                onChange={(event) => setConfigText(event.target.value)}
+              />
+            )}
+            {providerName.toUpperCase() === "PAYSTACK" && (
+              <div className="card" style={{ margin: 0 }}>
+                <div className="line-item">
+                  <div>
+                    <strong>Callback URL</strong>
+                    <small className="muted">{callbackUrl || "Set from school domain"}</small>
+                  </div>
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={() => copyValue(callbackUrl)}
+                    disabled={!callbackUrl}
+                  >
+                    Copy
+                  </button>
+                </div>
+                <div className="line-item">
+                  <div>
+                    <strong>Webhook URL</strong>
+                    <small className="muted">
+                      {webhookUrl || "Set NEXT_PUBLIC_PAYMENTS_WEBHOOK_URL"}
+                    </small>
+                  </div>
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={() => copyValue(webhookUrl)}
+                    disabled={!webhookUrl}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
+            <p className="muted">
+              For Paystack: use the dedicated fields above. Callback and webhook URLs are read-only for
+              reference.
+            </p>
             <button className="button" onClick={saveConfig} disabled={loading || !providerType || !providerName}>
               {editingId ? "Update config" : "Create config"}
             </button>

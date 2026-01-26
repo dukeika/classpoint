@@ -229,7 +229,7 @@ Lambda validates, returns report (duplicates/missing phones/bad classes)
 
 Confirm import creates Students/Parents/Links/Enrollments
 
-Fees setup per class/year + fee item breakdown
+Fees setup sub-wizard (Admin/Bursar): create fee items → build schedule → preview → generate invoices
 
 Test parent payment flow (sandbox)
 

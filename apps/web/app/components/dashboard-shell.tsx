@@ -50,6 +50,8 @@ export default function DashboardShell({ sections, children, brandName = "ClassP
   const [favorites, setFavorites] = useState<string[]>([]);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
+  const sidebarRef = useRef<HTMLDivElement | null>(null);
+  const [showScrollHint, setShowScrollHint] = useState(false);
   const [profile, setProfile] = useState({
     name: "User",
     role: "Staff",
@@ -84,6 +86,32 @@ export default function DashboardShell({ sections, children, brandName = "ClassP
     window.localStorage.setItem("cp.sidebar", collapsed ? "collapsed" : "expanded");
   }, [collapsed]);
 
+  const allowedSections = useMemo(() => {
+    if (!profile.groups.length) return sections;
+    return sections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => item.roles.some((role) => profile.groups.includes(role)))
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [profile.groups, sections]);
+
+  useEffect(() => {
+    const sidebar = sidebarRef.current;
+    if (!sidebar) return;
+    const updateScrollHint = () => {
+      const { scrollTop, clientHeight, scrollHeight } = sidebar;
+      setShowScrollHint(scrollHeight > clientHeight + 8 && scrollTop + clientHeight < scrollHeight - 4);
+    };
+    updateScrollHint();
+    sidebar.addEventListener("scroll", updateScrollHint);
+    window.addEventListener("resize", updateScrollHint);
+    return () => {
+      sidebar.removeEventListener("scroll", updateScrollHint);
+      window.removeEventListener("resize", updateScrollHint);
+    };
+  }, [allowedSections]);
+
   useEffect(() => {
     window.localStorage.setItem("cp.favorites", JSON.stringify(favorites));
   }, [favorites]);
@@ -98,16 +126,6 @@ export default function DashboardShell({ sections, children, brandName = "ClassP
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
   }, [profileMenuOpen]);
-
-  const allowedSections = useMemo(() => {
-    if (!profile.groups.length) return sections;
-    return sections
-      .map((section) => ({
-        ...section,
-        items: section.items.filter((item) => item.roles.some((role) => profile.groups.includes(role)))
-      }))
-      .filter((section) => section.items.length > 0);
-  }, [profile.groups, sections]);
 
   const flatItems = useMemo(() => allowedSections.flatMap((section) => section.items), [allowedSections]);
 
@@ -128,7 +146,7 @@ export default function DashboardShell({ sections, children, brandName = "ClassP
 
   return (
     <div className={`dashboard-shell ${collapsed ? "is-collapsed" : ""} ${drawerOpen ? "drawer-open" : ""}`}>
-      <aside className="sidebar">
+      <aside className="sidebar" ref={sidebarRef}>
         <div className="brand">
           <div className="brand-mark">{brandName.slice(0, 2).toUpperCase()}</div>
           <div className="brand-meta">
@@ -185,6 +203,13 @@ export default function DashboardShell({ sections, children, brandName = "ClassP
             <span className="nav-label">Support</span>
           </Link>
         </div>
+
+        {showScrollHint && (
+          <div className="sidebar-scroll-hint" aria-hidden="true">
+            <span>↓</span>
+            <small className="muted">Scroll for more</small>
+          </div>
+        )}
       </aside>
 
       <div className="content">

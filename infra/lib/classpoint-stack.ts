@@ -48,6 +48,9 @@ export class ClasspointStack extends Stack {
     parents: dynamodb.Table;
     studentParentLinks: dynamodb.Table;
     providerConfigs: dynamodb.Table;
+    plans: dynamodb.Table;
+    schoolSubscriptions: dynamodb.Table;
+    webhookEvents: dynamodb.Table;
     featureFlags: dynamodb.Table;
     auditEvents: dynamodb.Table;
     importJobs: dynamodb.Table;
@@ -500,6 +503,11 @@ export class ClasspointStack extends Stack {
       { indexName: 'bySchoolProvider', partitionKey: 'schoolId', sortKey: 'type' }
     ]);
 
+    const webhookEventsTable = createTable('WebhookEventsTable', 'schoolId', 'id', [
+      { indexName: 'byReference', partitionKey: 'reference', sortKey: 'receivedAt' },
+      { indexName: 'byProvider', partitionKey: 'provider', sortKey: 'receivedAt' }
+    ]);
+
     this.apiId = api.apiId;
     this.apiKey = publicApiKey.attrApiKey || '';
     this.graphqlUrl = api.graphqlUrl;
@@ -529,6 +537,9 @@ export class ClasspointStack extends Stack {
       parents: parentsTable,
       studentParentLinks: studentParentLinksTable,
       providerConfigs: providerConfigsTable,
+      plans: plansTable,
+      schoolSubscriptions: schoolSubscriptionsTable,
+      webhookEvents: webhookEventsTable,
       featureFlags: featureFlagsTable,
       auditEvents: auditEventsTable,
       importJobs: importJobsTable,
@@ -732,7 +743,7 @@ const seedPermissions = async () => {
 };
 
 exports.handler = async (event) => {
-  const input = event.arguments?.input || {};
+  const input = event.arguments?.input || event.input || event || {};
   const name = requireInput(input.name, 'name');
   const slug = normalizeSlug(requireInput(input.slug, 'slug'));
   if (!/^[a-z0-9-]+$/.test(slug)) {
@@ -900,7 +911,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const s3 = new S3Client({});
 
 exports.handler = async (event) => {
-  const input = event.arguments?.input || {};
+  const input = event.arguments?.input || event.input || event || {};
   const schoolId = input.schoolId;
   const fileName = input.fileName || 'import.csv';
   if (!schoolId) throw new Error('schoolId is required');
@@ -931,7 +942,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const s3 = new S3Client({});
 
 exports.handler = async (event) => {
-  const input = event.arguments?.input || {};
+  const input = event.arguments?.input || event.input || event || {};
   const schoolId = input.schoolId;
   const fileName = input.fileName || 'proof.jpg';
   if (!schoolId) throw new Error('schoolId is required');
@@ -963,7 +974,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const s3 = new S3Client({});
 
 exports.handler = async (event) => {
-  const input = event.arguments?.input || {};
+  const input = event.arguments?.input || event.input || event || {};
   const schoolId = input.schoolId;
   const receiptNo = input.receiptNo;
   if (!schoolId || !receiptNo) throw new Error('schoolId and receiptNo are required');
@@ -1000,7 +1011,7 @@ const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 exports.handler = async (event) => {
-  const input = event.arguments?.input || {};
+  const input = event.arguments?.input || event.input || event || {};
   const schoolId = input.schoolId;
   const receiptNo = input.receiptNo;
   if (!schoolId || !receiptNo) throw new Error('schoolId and receiptNo are required');
@@ -1091,7 +1102,7 @@ const groupForUserType = (userType) => {
 };
 
 exports.handler = async (event) => {
-  const input = event.arguments?.input || {};
+  const input = event.arguments?.input || event.input || event || {};
   const schoolId = input.schoolId;
   const name = input.name;
   const email = input.email;
@@ -1174,12 +1185,13 @@ exports.handler = async (event) => {
       environment: {
         ENROLLMENTS_TABLE: enrollmentsTable.tableName,
         INVOICES_TABLE: invoicesTable.tableName,
+        FEE_SCHEDULES_TABLE: feeSchedulesTable.tableName,
         EVENT_BUS_NAME: eventBus.eventBusName
       },
       code: lambda.Code.fromInline(`
 const { EventBridgeClient, PutEventsCommand } = require('@aws-sdk/client-eventbridge');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, PutCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
 const { randomUUID } = require('crypto');
 
 const eb = new EventBridgeClient({});
@@ -1214,7 +1226,7 @@ const hasExistingInvoice = async (schoolId, studentId, termId, classGroupId, fee
 };
 
 exports.handler = async (event) => {
-  const input = event.arguments?.input || {};
+  const input = event.arguments?.input || event.input || event || {};
   const schoolId = input.schoolId;
   const termId = input.termId;
   const classGroupId = input.classGroupId;
@@ -1225,6 +1237,15 @@ exports.handler = async (event) => {
   const skipDuplicates = input.skipDuplicates !== false;
   if (!schoolId || !termId || !classGroupId || !feeScheduleId) {
     throw new Error('schoolId, termId, classGroupId, and feeScheduleId are required');
+  }
+
+  let currency = 'NGN';
+  if (process.env.FEE_SCHEDULES_TABLE) {
+    const scheduleRes = await dynamo.send(new GetCommand({
+      TableName: process.env.FEE_SCHEDULES_TABLE,
+      Key: { schoolId, id: feeScheduleId }
+    }));
+    currency = scheduleRes.Item?.currency || currency;
   }
 
   let createdCount = 0;
@@ -1285,6 +1306,7 @@ exports.handler = async (event) => {
           termId,
           classGroupId: enrollment.classGroupId || classGroupId,
           feeScheduleId,
+          currency,
           status: 'ISSUED',
           issuedAt: now,
           dueAt,
@@ -1321,6 +1343,8 @@ exports.handler = async (event) => {
     });
 
     enrollmentsTable.grantReadData(batchInvoiceGeneratorFn);
+    feeSchedulesTable.grantReadData(batchInvoiceGeneratorFn);
+    invoicesTable.grantReadData(batchInvoiceGeneratorFn);
     invoicesTable.grantWriteData(batchInvoiceGeneratorFn);
     eventBus.grantPutEventsTo(batchInvoiceGeneratorFn);
 
@@ -1845,386 +1869,6 @@ $util.qr($ctx.stash.put("jobId", $jobId))
       requestMappingTemplate: MappingTemplate.fromString(importsGuard + '{}'),
       responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
     });
-    ds.academicSessions.createResolver('CreateAcademicSession', {
-      typeName: 'Mutation',
-      fieldName: 'createAcademicSession',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "PutItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($util.autoId())
-  },
-  "attributeValues": {
-    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
-    "startDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.startDate),
-    "endDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.endDate),
-    "status": $util.dynamodb.toDynamoDBJson($ctx.args.input.status)
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
-    });
-    ds.academicSessions.createResolver('UpdateAcademicSession', {
-      typeName: 'Mutation',
-      fieldName: 'updateAcademicSession',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "PutItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
-  },
-  "attributeValues": {
-    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
-    "startDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.startDate),
-    "endDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.endDate),
-    "status": $util.dynamodb.toDynamoDBJson($ctx.args.input.status)
-  },
-  "condition": {
-    "expression": "attribute_exists(#id)",
-    "expressionNames": { "#id": "id" }
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
-    });
-    ds.academicSessions.createResolver('DeleteAcademicSession', {
-      typeName: 'Mutation',
-      fieldName: 'deleteAcademicSession',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "DeleteItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson(true)')
-    });
-    ds.terms.createResolver('CreateTerm', {
-      typeName: 'Mutation',
-      fieldName: 'createTerm',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "PutItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($util.autoId())
-  },
-  "attributeValues": {
-    "sessionId": $util.dynamodb.toDynamoDBJson($ctx.args.input.sessionId),
-    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
-    "startDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.startDate),
-    "endDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.endDate),
-    "status": $util.dynamodb.toDynamoDBJson($ctx.args.input.status)
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
-    });
-    ds.terms.createResolver('UpdateTerm', {
-      typeName: 'Mutation',
-      fieldName: 'updateTerm',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "PutItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
-  },
-  "attributeValues": {
-    "sessionId": $util.dynamodb.toDynamoDBJson($ctx.args.input.sessionId),
-    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
-    "startDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.startDate),
-    "endDate": $util.dynamodb.toDynamoDBJson($ctx.args.input.endDate),
-    "status": $util.dynamodb.toDynamoDBJson($ctx.args.input.status)
-  },
-  "condition": {
-    "expression": "attribute_exists(#id)",
-    "expressionNames": { "#id": "id" }
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
-    });
-    ds.terms.createResolver('DeleteTerm', {
-      typeName: 'Mutation',
-      fieldName: 'deleteTerm',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "DeleteItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson(true)')
-    });
-    ds.levels.createResolver('CreateLevel', {
-      typeName: 'Mutation',
-      fieldName: 'createLevel',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-#set($newId = $util.autoId())
-$util.qr($ctx.stash.put("newId", $newId))
-{
-  "version": "2018-05-29",
-  "operation": "PutItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($newId)
-  },
-  "attributeValues": {
-    "type": $util.dynamodb.toDynamoDBJson($ctx.args.input.type),
-    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
-    "sortOrder": $util.dynamodb.toDynamoDBJson($ctx.args.input.sortOrder.toString())
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString(`
-#set($input = $ctx.args.input)
-$util.toJson({
-  "schoolId": $input.schoolId,
-  "id": $ctx.stash.newId,
-  "type": $input.type,
-  "name": $input.name,
-  "sortOrder": $input.sortOrder
-})`)
-    });
-    ds.levels.createResolver('UpdateLevel', {
-      typeName: 'Mutation',
-      fieldName: 'updateLevel',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "PutItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
-  },
-  "attributeValues": {
-    "type": $util.dynamodb.toDynamoDBJson($ctx.args.input.type),
-    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
-    "sortOrder": $util.dynamodb.toDynamoDBJson($ctx.args.input.sortOrder.toString())
-  },
-  "condition": {
-    "expression": "attribute_exists(#id)",
-    "expressionNames": { "#id": "id" }
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
-    });
-    ds.levels.createResolver('DeleteLevel', {
-      typeName: 'Mutation',
-      fieldName: 'deleteLevel',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "DeleteItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson(true)')
-    });
-    ds.classYears.createResolver('CreateClassYear', {
-      typeName: 'Mutation',
-      fieldName: 'createClassYear',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-#set($newId = $util.autoId())
-$util.qr($ctx.stash.put("newId", $newId))
-{
-  "version": "2018-05-29",
-  "operation": "PutItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($newId)
-  },
-  "attributeValues": {
-    "levelId": $util.dynamodb.toDynamoDBJson($ctx.args.input.levelId),
-    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
-    "sortOrder": $util.dynamodb.toDynamoDBJson($ctx.args.input.sortOrder.toString())
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString(`
-#set($input = $ctx.args.input)
-$util.toJson({
-  "schoolId": $input.schoolId,
-  "id": $ctx.stash.newId,
-  "levelId": $input.levelId,
-  "name": $input.name,
-  "sortOrder": $input.sortOrder
-})`)
-    });
-    ds.classYears.createResolver('UpdateClassYear', {
-      typeName: 'Mutation',
-      fieldName: 'updateClassYear',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "PutItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
-  },
-  "attributeValues": {
-    "levelId": $util.dynamodb.toDynamoDBJson($ctx.args.input.levelId),
-    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name),
-    "sortOrder": $util.dynamodb.toDynamoDBJson($ctx.args.input.sortOrder.toString())
-  },
-  "condition": {
-    "expression": "attribute_exists(#id)",
-    "expressionNames": { "#id": "id" }
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
-    });
-    ds.classYears.createResolver('DeleteClassYear', {
-      typeName: 'Mutation',
-      fieldName: 'deleteClassYear',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "DeleteItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson(true)')
-    });
-    ds.classArms.createResolver('CreateClassArm', {
-      typeName: 'Mutation',
-      fieldName: 'createClassArm',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-#set($newId = $util.autoId())
-$util.qr($ctx.stash.put("newId", $newId))
-{
-  "version": "2018-05-29",
-  "operation": "PutItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($newId)
-  },
-  "attributeValues": {
-    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name)
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString(`
-#set($input = $ctx.args.input)
-$util.toJson({
-  "schoolId": $input.schoolId,
-  "id": $ctx.stash.newId,
-  "name": $input.name
-})`)
-    });
-    ds.classArms.createResolver('UpdateClassArm', {
-      typeName: 'Mutation',
-      fieldName: 'updateClassArm',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "PutItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
-  },
-  "attributeValues": {
-    "name": $util.dynamodb.toDynamoDBJson($ctx.args.input.name)
-  },
-  "condition": {
-    "expression": "attribute_exists(#id)",
-    "expressionNames": { "#id": "id" }
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
-    });
-    ds.classArms.createResolver('DeleteClassArm', {
-      typeName: 'Mutation',
-      fieldName: 'deleteClassArm',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "DeleteItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson(true)')
-    });
-    ds.classGroups.createResolver('CreateClassGroup', {
-      typeName: 'Mutation',
-      fieldName: 'createClassGroup',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-#set($newId = $util.autoId())
-$util.qr($ctx.stash.put("newId", $newId))
-{
-  "version": "2018-05-29",
-  "operation": "PutItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($newId)
-  },
-  "attributeValues": {
-    "classYearId": $util.dynamodb.toDynamoDBJson($ctx.args.input.classYearId),
-    "classArmId": $util.dynamodb.toDynamoDBJson($ctx.args.input.classArmId),
-    "displayName": $util.dynamodb.toDynamoDBJson($ctx.args.input.displayName),
-    "classTeacherUserId": $util.dynamodb.toDynamoDBJson($ctx.args.input.classTeacherUserId)
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString(`
-#set($input = $ctx.args.input)
-$util.toJson({
-  "schoolId": $input.schoolId,
-  "id": $ctx.stash.newId,
-  "classYearId": $input.classYearId,
-  "classArmId": $input.classArmId,
-  "displayName": $input.displayName,
-  "classTeacherUserId": $input.classTeacherUserId
-})`)
-    });
-    ds.classGroups.createResolver('UpdateClassGroup', {
-      typeName: 'Mutation',
-      fieldName: 'updateClassGroup',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "PutItem",
-  "key": {
-    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
-    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
-  },
-  "attributeValues": {
-    "classYearId": $util.dynamodb.toDynamoDBJson($ctx.args.input.classYearId),
-    "classArmId": $util.dynamodb.toDynamoDBJson($ctx.args.input.classArmId),
-    "displayName": $util.dynamodb.toDynamoDBJson($ctx.args.input.displayName),
-    "classTeacherUserId": $util.dynamodb.toDynamoDBJson($ctx.args.input.classTeacherUserId)
-  },
-  "condition": {
-    "expression": "attribute_exists(#id)",
-    "expressionNames": { "#id": "id" }
-  }
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
-    });
-    ds.classGroups.createResolver('DeleteClassGroup', {
-      typeName: 'Mutation',
-      fieldName: 'deleteClassGroup',
-      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
-  {
-    "version": "2018-05-29",
-    "operation": "DeleteItem",
-    "key": {
-      "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId),
-      "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
-    }
-  }`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson(true)')
-    });
-
     const createRoleFn = new appsync.AppsyncFunction(this, 'CreateRoleFn', {
       name: `${appsyncFunctionNamePrefix}_createRole`,
       api,
@@ -3047,7 +2691,7 @@ $util.toJson($ctx.result)
 `)
     });
 
-    const createInvoiceFn = new appsync.AppsyncFunction(this, 'CreateInvoiceFn', {
+const createInvoiceFn = new appsync.AppsyncFunction(this, 'CreateInvoiceFn', {
       name: `${appsyncFunctionNamePrefix}_createInvoice`,
       api,
       dataSource: ds.invoices,
@@ -3055,6 +2699,10 @@ $util.toJson($ctx.result)
 #set($invoiceId = $util.autoId())
 #set($invoiceNo = "INV-" + $util.time.nowEpochMilliSeconds())
 $util.qr($ctx.stash.put("invoiceId", $invoiceId))
+$util.qr($ctx.stash.put("invoiceNo", $invoiceNo))
+#if(!$ctx.args.input.feeScheduleId)
+  $util.error("feeScheduleId is required", "MissingFeeSchedule")
+#end
 {
   "version": "2018-05-29",
   "operation": "PutItem",
@@ -3073,6 +2721,7 @@ $util.qr($ctx.stash.put("invoiceId", $invoiceId))
     "status": $util.dynamodb.toDynamoDBJson("ISSUED"),
     "issuedAt": $util.dynamodb.toDynamoDBJson($util.time.nowISO8601()),
     "dueAt": $util.dynamodb.toDynamoDBJson($ctx.args.input.dueAt),
+    "currency": $util.dynamodb.toDynamoDBJson("NGN"),
     "requiredSubtotal": $util.dynamodb.toDynamoDBJson(0),
     "optionalSubtotal": $util.dynamodb.toDynamoDBJson(0),
     "discountTotal": $util.dynamodb.toDynamoDBJson(0),
@@ -3081,7 +2730,31 @@ $util.qr($ctx.stash.put("invoiceId", $invoiceId))
     "amountDue": $util.dynamodb.toDynamoDBJson(0)
   }
 }`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
+      responseMappingTemplate: MappingTemplate.fromString(`
+#set($createdInvoice = {
+  "id": $ctx.stash.invoiceId,
+  "schoolId": $ctx.args.input.schoolId,
+  "invoiceNo": $ctx.stash.invoiceNo,
+  "studentId": $ctx.args.input.studentId,
+  "enrollmentId": $ctx.args.input.enrollmentId,
+  "sessionId": $ctx.args.input.sessionId,
+  "termId": $ctx.args.input.termId,
+  "classGroupId": $util.defaultIfNull($ctx.args.input.classGroupId, $ctx.stash.classGroupId),
+  "feeScheduleId": $ctx.args.input.feeScheduleId,
+  "status": "ISSUED",
+  "issuedAt": $util.time.nowISO8601(),
+  "dueAt": $ctx.args.input.dueAt,
+  "currency": "NGN",
+  "requiredSubtotal": 0,
+  "optionalSubtotal": 0,
+  "discountTotal": 0,
+  "penaltyTotal": 0,
+  "amountPaid": 0,
+  "amountDue": 0
+})
+$util.qr($ctx.stash.put("createdInvoice", $createdInvoice))
+$util.toJson($createdInvoice)
+`)
     });
     const emitInvoiceJobFn = new appsync.AppsyncFunction(this, 'EmitInvoiceJobFn', {
       name: `${appsyncFunctionNamePrefix}_emitInvoiceJob`,
@@ -3107,7 +2780,7 @@ $util.qr($ctx.stash.put("invoiceId", $invoiceId))
       fieldName: 'createInvoice',
       pipelineConfig: [hydrateInvoiceClassGroupFn, createInvoiceFn, emitInvoiceJobFn],
       requestMappingTemplate: MappingTemplate.fromString(billingGuard + '{}'),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.prev.result)')
+      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.stash.createdInvoice)')
     });
     ds.batchInvoiceGenerator.createResolver('GenerateClassInvoicesResolver', {
       typeName: 'Mutation',
@@ -3149,7 +2822,7 @@ const loadInvoice = async (schoolId, invoiceId) => {
 };
 
 exports.handler = async (event) => {
-  const input = event.arguments?.input || {};
+  const input = event.arguments?.input || event.input || event || {};
   const { schoolId, invoiceId, selectedLineIds } = input;
   if (!schoolId || !invoiceId) throw new Error('schoolId and invoiceId are required');
   const ids = new Set(selectedLineIds || []);
@@ -3259,6 +2932,19 @@ exports.handler = async (event) => {
   #if(!$invoice)
     $util.error("Invoice not found", "NotFound")
   #end
+  #set($amountDue = $util.defaultIfNull($invoice.amountDue, 0))
+  #if($invoice.status == "PAID" || $invoice.status == "VOID" || $invoice.status == "DRAFT")
+    $util.error("Invoice is not payable", "InvoiceNotPayable")
+  #end
+  #if($amountDue <= 0)
+    $util.error("Invoice is not ready for payment", "InvoiceNotReady")
+  #end
+  #if($ctx.args.input.amount <= 0)
+    $util.error("Payment amount must be greater than zero", "InvalidAmount")
+  #end
+  #if($ctx.args.input.amount > $amountDue)
+    $util.error("Payment amount exceeds amount due", "AmountExceedsDue")
+  #end
   #set($paid = $util.defaultIfNull($invoice.amountPaid, 0))
   #set($requiredSubtotal = $util.defaultIfNull($invoice.requiredSubtotal, 0))
   #set($minFirstPercent = $util.defaultIfNull($invoice.minFirstPercent, 30))
@@ -3282,7 +2968,7 @@ exports.handler = async (event) => {
       "provider": $util.dynamodb.toDynamoDBJson($ctx.args.input.provider),
       "amount": $util.dynamodb.toDynamoDBJson($ctx.args.input.amount),
       "currency": $util.dynamodb.toDynamoDBJson($ctx.args.input.currency),
-      "status": $util.dynamodb.toDynamoDBJson("INITIATED"),
+      "status": $util.dynamodb.toDynamoDBJson($ctx.args.input.status),
       "externalReference": $util.dynamodb.toDynamoDBJson($ctx.args.input.externalReference),
       "createdAt": $util.dynamodb.toDynamoDBJson($util.time.nowISO8601())
     }
@@ -3297,6 +2983,72 @@ exports.handler = async (event) => {
       pipelineConfig: [getInvoiceForPaymentIntentFn, createPaymentIntentFn],
       requestMappingTemplate: MappingTemplate.fromString(tenantGuard + '{}'),
       responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.prev.result)')
+    });
+
+    ds.paymentTransactions.createResolver('CreatePaymentTransaction', {
+      typeName: 'Mutation',
+      fieldName: 'createPaymentTransaction',
+      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `{
+  "version": "2018-05-29",
+  "operation": "PutItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($util.autoId())
+  },
+  "attributeValues": {
+    "invoiceId": $util.dynamodb.toDynamoDBJson($ctx.args.input.invoiceId),
+    "subscriptionId": $util.dynamodb.toDynamoDBJson($ctx.args.input.subscriptionId),
+    "paymentIntentId": $util.dynamodb.toDynamoDBJson($ctx.args.input.paymentIntentId),
+    "provider": $util.dynamodb.toDynamoDBJson($ctx.args.input.provider),
+    "method": $util.dynamodb.toDynamoDBJson($ctx.args.input.method),
+    "amount": $util.dynamodb.toDynamoDBJson($ctx.args.input.amount),
+    "currency": $util.dynamodb.toDynamoDBJson($ctx.args.input.currency),
+    "status": $util.dynamodb.toDynamoDBJson($ctx.args.input.status),
+    "reference": $util.dynamodb.toDynamoDBJson($ctx.args.input.reference),
+    "providerReference": $util.dynamodb.toDynamoDBJson($ctx.args.input.providerReference),
+    "type": $util.dynamodb.toDynamoDBJson($ctx.args.input.type),
+    "environment": $util.dynamodb.toDynamoDBJson($ctx.args.input.environment),
+    "metadata": $util.dynamodb.toDynamoDBJson($ctx.args.input.metadata),
+    "providerResponse": $util.dynamodb.toDynamoDBJson($ctx.args.input.providerResponse),
+    "processedAt": $util.dynamodb.toDynamoDBJson($ctx.args.input.processedAt),
+    "createdAt": $util.dynamodb.toDynamoDBJson($util.time.nowISO8601()),
+    "updatedAt": $util.dynamodb.toDynamoDBJson($util.time.nowISO8601())
+  },
+  "condition": {
+    "expression": "attribute_not_exists(#id)",
+    "expressionNames": { "#id": "id" }
+  }
+}`),
+      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
+    });
+
+    ds.paymentIntents.createResolver('UpdatePaymentIntent', {
+      typeName: 'Mutation',
+      fieldName: 'updatePaymentIntent',
+      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `{
+  "version": "2018-05-29",
+  "operation": "UpdateItem",
+  "key": {
+    "schoolId": $util.dynamodb.toDynamoDBJson($ctx.args.input.schoolId),
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.input.id)
+  },
+  "update": {
+    "expression": "SET #status = :status, externalReference = :externalReference, providerReference = :providerReference, redirectedAt = :redirectedAt, confirmedAt = :confirmedAt, failedAt = :failedAt, updatedAt = :updatedAt",
+    "expressionNames": {
+      "#status": "status"
+    },
+    "expressionValues": {
+      ":status": $util.dynamodb.toDynamoDBJson($ctx.args.input.status),
+      ":externalReference": $util.dynamodb.toDynamoDBJson($ctx.args.input.externalReference),
+      ":providerReference": $util.dynamodb.toDynamoDBJson($ctx.args.input.providerReference),
+      ":redirectedAt": $util.dynamodb.toDynamoDBJson($ctx.args.input.redirectedAt),
+      ":confirmedAt": $util.dynamodb.toDynamoDBJson($ctx.args.input.confirmedAt),
+      ":failedAt": $util.dynamodb.toDynamoDBJson($ctx.args.input.failedAt),
+      ":updatedAt": $util.dynamodb.toDynamoDBJson($util.time.nowISO8601())
+    }
+  }
+}`),
+      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result)')
     });
 
     const createManualPaymentTxnFn = new appsync.AppsyncFunction(this, 'CreateManualPaymentTxnFn', {
@@ -3681,128 +3433,6 @@ $util.qr($exprValues.put(":s", $util.dynamodb.toDynamoDBJson($ctx.args.input.sta
     }
   },
   "limit": $util.defaultIfNull($ctx.args.limit, 50)
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result.items)')
-    });
-
-    ds.academicSessions.createResolver('SessionsBySchool', {
-      typeName: 'Query',
-      fieldName: 'sessionsBySchool',
-      requestMappingTemplate: MappingTemplate.fromString(staffGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "Query",
-  "index": "bySchoolSession",
-  "query": {
-    "expression": "schoolId = :sid",
-    "expressionValues": {
-      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId)
-    }
-  },
-  "limit": $util.defaultIfNull($ctx.args.limit, 50)
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result.items)')
-    });
-
-    ds.terms.createResolver('TermsBySession', {
-      typeName: 'Query',
-      fieldName: 'termsBySession',
-      requestMappingTemplate: MappingTemplate.fromString(staffGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "Query",
-  "index": "bySession",
-  "query": {
-    "expression": "sessionId = :sid",
-    "expressionValues": {
-      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.sessionId)
-    }
-  },
-#if($tenantSchool)
-  "filter": {
-    "expression": "schoolId = :tsid",
-    "expressionValues": {
-      ":tsid": $util.dynamodb.toDynamoDBJson($tenantSchool)
-    }
-  },
-#end
-  "limit": $util.defaultIfNull($ctx.args.limit, 20)
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result.items)')
-    });
-
-    ds.levels.createResolver('LevelsBySchool', {
-      typeName: 'Query',
-      fieldName: 'levelsBySchool',
-      requestMappingTemplate: MappingTemplate.fromString(staffGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "Query",
-  "index": "bySchoolLevel",
-  "query": {
-    "expression": "schoolId = :sid",
-    "expressionValues": {
-      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId)
-    }
-  },
-  "limit": $util.defaultIfNull($ctx.args.limit, 50)
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result.items)')
-    });
-
-    ds.classYears.createResolver('ClassYearsBySchool', {
-      typeName: 'Query',
-      fieldName: 'classYearsBySchool',
-      requestMappingTemplate: MappingTemplate.fromString(staffGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "Query",
-  "index": "bySchoolClassYear",
-  "query": {
-    "expression": "schoolId = :sid",
-    "expressionValues": {
-      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId)
-    }
-  },
-  "limit": $util.defaultIfNull($ctx.args.limit, 50)
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result.items)')
-    });
-
-    ds.classArms.createResolver('ClassArmsBySchool', {
-      typeName: 'Query',
-      fieldName: 'classArmsBySchool',
-      requestMappingTemplate: MappingTemplate.fromString(staffGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "Query",
-  "index": "bySchoolArm",
-  "query": {
-    "expression": "schoolId = :sid",
-    "expressionValues": {
-      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId)
-    }
-  },
-  "limit": $util.defaultIfNull($ctx.args.limit, 50)
-}`),
-      responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result.items)')
-    });
-
-    ds.classGroups.createResolver('ClassGroupsBySchool', {
-      typeName: 'Query',
-      fieldName: 'classGroupsBySchool',
-      requestMappingTemplate: MappingTemplate.fromString(staffGuard + `
-{
-  "version": "2018-05-29",
-  "operation": "Query",
-  "index": "bySchoolClassGroup",
-  "query": {
-    "expression": "schoolId = :sid",
-    "expressionValues": {
-      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId)
-    }
-  },
-  "limit": $util.defaultIfNull($ctx.args.limit, 100)
 }`),
       responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result.items)')
     });
@@ -4341,7 +3971,11 @@ $util.toJson({
     ds.students.createResolver('StudentsBySchool', {
       typeName: 'Query',
       fieldName: 'studentsBySchool',
-      requestMappingTemplate: MappingTemplate.fromString(staffGuard + `
+      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
+  #set($groups = $util.defaultIfNull($ctx.identity.claims.get("cognito:groups"), []))
+  #if(!$groups.contains("APP_ADMIN") && !$groups.contains("SCHOOL_ADMIN") && !$groups.contains("BURSAR") && !$groups.contains("TEACHER") && !$groups.contains("PARENT"))
+    $util.unauthorized()
+  #end
 {
   "version": "2018-05-29",
   "operation": "Query",
@@ -4379,7 +4013,26 @@ $util.toJson({
     ds.parents.createResolver('ParentsBySchool', {
       typeName: 'Query',
       fieldName: 'parentsBySchool',
-      requestMappingTemplate: MappingTemplate.fromString(staffGuard + `
+      requestMappingTemplate: MappingTemplate.fromString(tenantGuard + `
+  #set($groups = $util.defaultIfNull($ctx.identity.claims.get("cognito:groups"), []))
+  #if(!$groups.contains("APP_ADMIN") && !$groups.contains("SCHOOL_ADMIN") && !$groups.contains("BURSAR") && !$groups.contains("TEACHER") && !$groups.contains("PARENT"))
+    $util.unauthorized()
+  #end
+  #set($filterExpr = "")
+  #set($useEmail = false)
+  #if($groups.contains("PARENT"))
+    #set($email = $ctx.identity.claims.get("email"))
+    #set($phone = $ctx.identity.claims.get("phone_number"))
+    #if(!$email && !$phone)
+      $util.unauthorized()
+    #end
+    #if($email)
+      #set($filterExpr = "email = :email")
+      #set($useEmail = true)
+    #elseif($phone)
+      #set($filterExpr = "primaryPhone = :phone")
+    #end
+  #end
 {
   "version": "2018-05-29",
   "operation": "Query",
@@ -4390,6 +4043,18 @@ $util.toJson({
       ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId)
     }
   },
+#if($filterExpr != "")
+  "filter": {
+    "expression": "$filterExpr",
+    "expressionValues": {
+  #if($useEmail)
+      ":email": $util.dynamodb.toDynamoDBJson($email)
+  #else
+      ":phone": $util.dynamodb.toDynamoDBJson($phone)
+  #end
+    }
+  },
+#end
   "limit": $util.defaultIfNull($ctx.args.limit, 100)
 }`),
       responseMappingTemplate: MappingTemplate.fromString('$util.toJson($ctx.result.items)')
@@ -5346,6 +5011,7 @@ $util.toJson($ctx.prev.result.items)
     void schoolSubscriptionsTable;
     void schoolSubscriptionAddOnsTable;
     void providerConfigsTable;
+    void webhookEventsTable;
     void dataKey;
     void assetsKey;
     void ds;

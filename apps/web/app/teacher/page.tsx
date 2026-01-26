@@ -7,7 +7,12 @@ export default function TeacherDashboard() {
           <h1>Today at a glance</h1>
           <p className="muted">Mark attendance quickly and keep score entry on track.</p>
         </div>
-        <button className="button">Take attendance</button>
+        <div className="page-header-actions">
+          <button className="button">Take attendance</button>
+          <a className="ghost-button" href="/help/contact-support">
+            Need help?
+          </a>
+        </div>
       </div>
 
       <div className="grid">
@@ -28,6 +33,12 @@ export default function TeacherDashboard() {
               </div>
               <span className="status-pill">Today</span>
             </div>
+            <div className="line-item muted">
+              <div>
+                <strong>No other classes scheduled</strong>
+                <small>Need a change? Contact your admin.</small>
+              </div>
+            </div>
           </div>
         </div>
         <div className="card">
@@ -40,6 +51,12 @@ export default function TeacherDashboard() {
             <div className="summary-row">
               <span>Submitted</span>
               <span>1 class</span>
+            </div>
+            <div className="summary-row muted">
+              <span>Need to adjust?</span>
+              <span>
+                <a href="/teacher/attendance">Go to attendance</a>
+              </span>
             </div>
           </div>
         </div>
@@ -75,6 +92,9 @@ export default function TeacherDashboard() {
           </a>
           <a className="button" href="/teacher/assessments/score-entry">
             Continue score entry
+          </a>
+          <a className="ghost-button" href="/teacher/classes">
+            View today’s classes
           </a>
         </div>
       </div>

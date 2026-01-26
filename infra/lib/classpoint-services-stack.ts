@@ -48,6 +48,9 @@ export interface ClasspointServicesStackProps extends StackProps {
     parents: dynamodb.ITable;
     studentParentLinks: dynamodb.ITable;
     providerConfigs: dynamodb.ITable;
+    plans: dynamodb.ITable;
+    schoolSubscriptions: dynamodb.ITable;
+    webhookEvents: dynamodb.ITable;
     featureFlags: dynamodb.ITable;
     auditEvents: dynamodb.ITable;
     importJobs: dynamodb.ITable;
@@ -569,8 +572,32 @@ export class ClasspointServicesStack extends Stack {
     );
 
     const paymentWebhookSecretName = `classpoint/${envName}/payments/webhook`;
+    const classpointPaystackEnv =
+      (this.node.tryGetContext('classpointPaystackEnv') as string | undefined) ||
+      process.env.CLASSPOINT_PAYSTACK_ENV ||
+      '';
+    const classpointPaystackSecretKeyTest =
+      (this.node.tryGetContext('classpointPaystackSecretKeyTest') as string | undefined) ||
+      process.env.CLASSPOINT_PAYSTACK_SECRET_KEY_TEST ||
+      '';
+    const classpointPaystackSecretKeyLive =
+      (this.node.tryGetContext('classpointPaystackSecretKeyLive') as string | undefined) ||
+      process.env.CLASSPOINT_PAYSTACK_SECRET_KEY_LIVE ||
+      '';
 
-    const paymentWebhook = new lambda.Function(this, 'PaymentWebhookHandler', {
+    const basePaymentWebhookEnv = {
+      EVENT_BUS_NAME: eventBus.eventBusName,
+      PAYMENT_WEBHOOK_SECRET_NAME: paymentWebhookSecretName,
+      PAYMENT_INTENTS_TABLE: tables.paymentIntents.tableName,
+      PAYMENT_TRANSACTIONS_TABLE: tables.paymentTransactions.tableName,
+      INVOICES_TABLE: tables.invoices.tableName,
+      RECEIPT_COUNTERS_TABLE: tables.receiptCounters.tableName,
+      AUDIT_EVENTS_TABLE: tables.auditEvents.tableName,
+      PROVIDER_CONFIGS_TABLE: tables.providerConfigs.tableName,
+      WEBHOOK_EVENTS_TABLE: tables.webhookEvents.tableName
+    };
+
+    const schoolPaymentWebhook = new lambda.Function(this, 'PaymentWebhookHandler', {
       runtime: lambda.Runtime.NODEJS_18_X,
       layers: [awsSdkLayer],
       handler: 'index.handler',
@@ -578,19 +605,41 @@ export class ClasspointServicesStack extends Stack {
       timeout: cdk.Duration.seconds(10),
       memorySize: 256,
       environment: {
-        EVENT_BUS_NAME: eventBus.eventBusName,
-        PAYMENT_WEBHOOK_SECRET_NAME: paymentWebhookSecretName,
-        PAYMENT_TRANSACTIONS_TABLE: tables.paymentTransactions.tableName,
-        INVOICES_TABLE: tables.invoices.tableName,
-        RECEIPT_COUNTERS_TABLE: tables.receiptCounters.tableName,
-        AUDIT_EVENTS_TABLE: tables.auditEvents.tableName
+        ...basePaymentWebhookEnv,
+        WEBHOOK_SCOPE: 'school'
       }
     });
-    eventBus.grantPutEventsTo(paymentWebhook);
-    tables.paymentTransactions.grantReadWriteData(paymentWebhook);
-    tables.invoices.grantReadWriteData(paymentWebhook);
-    tables.receiptCounters.grantReadWriteData(paymentWebhook);
-    tables.auditEvents.grantReadWriteData(paymentWebhook);
+    const classpointPaymentWebhook = new lambda.Function(this, 'ClasspointPaymentWebhookHandler', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      layers: [awsSdkLayer],
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '..', '..', 'services', 'workers', 'payment-webhook')),
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 256,
+      environment: {
+        ...basePaymentWebhookEnv,
+        WEBHOOK_SCOPE: 'classpoint',
+        CLASSPOINT_PAYSTACK_ENV: classpointPaystackEnv,
+        CLASSPOINT_PAYSTACK_SECRET_KEY_TEST: classpointPaystackSecretKeyTest,
+        CLASSPOINT_PAYSTACK_SECRET_KEY_LIVE: classpointPaystackSecretKeyLive,
+        SCHOOL_SUBSCRIPTIONS_TABLE: tables.schoolSubscriptions.tableName,
+        PLANS_TABLE: tables.plans.tableName
+      }
+    });
+    eventBus.grantPutEventsTo(schoolPaymentWebhook);
+    tables.paymentIntents.grantReadWriteData(schoolPaymentWebhook);
+    tables.paymentTransactions.grantReadWriteData(schoolPaymentWebhook);
+    tables.invoices.grantReadWriteData(schoolPaymentWebhook);
+    tables.receiptCounters.grantReadWriteData(schoolPaymentWebhook);
+    tables.auditEvents.grantReadWriteData(schoolPaymentWebhook);
+    tables.providerConfigs.grantReadData(schoolPaymentWebhook);
+    tables.webhookEvents.grantWriteData(schoolPaymentWebhook);
+
+    tables.paymentTransactions.grantReadWriteData(classpointPaymentWebhook);
+    tables.auditEvents.grantReadWriteData(classpointPaymentWebhook);
+    tables.schoolSubscriptions.grantReadWriteData(classpointPaymentWebhook);
+    tables.plans.grantReadData(classpointPaymentWebhook);
+    tables.webhookEvents.grantWriteData(classpointPaymentWebhook);
 
     // Messaging delivery webhook (Twilio signature verification)
     const messagingWebhook = new lambda.Function(this, 'MessagingWebhookHandler', {
@@ -634,14 +683,14 @@ export class ClasspointServicesStack extends Stack {
       })
     );
     tables.users.grantReadWriteData(adminUserProvisioner);
-    paymentWebhook.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: ['secretsmanager:GetSecretValue'],
-        resources: [
-          `arn:${this.partition}:secretsmanager:${this.region}:${this.account}:secret:classpoint/${envName}/payments/webhook*`
-        ]
-      })
-    );
+    const paymentWebhookSecretPolicy = new iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [
+        `arn:${this.partition}:secretsmanager:${this.region}:${this.account}:secret:classpoint/${envName}/payments/webhook*`
+      ]
+    });
+    schoolPaymentWebhook.addToRolePolicy(paymentWebhookSecretPolicy);
+    classpointPaymentWebhook.addToRolePolicy(paymentWebhookSecretPolicy);
     messagingWebhook.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ['secretsmanager:GetSecretValue'],
@@ -662,7 +711,31 @@ export class ClasspointServicesStack extends Stack {
     });
     const paymentsRes = paymentApi.root.addResource('payments');
     const paymentWebhookRes = paymentsRes.addResource('webhook');
-    paymentWebhookRes.addMethod('POST', new apigw.LambdaIntegration(paymentWebhook, { proxy: true }));
+    paymentWebhookRes.addMethod('POST', new apigw.LambdaIntegration(schoolPaymentWebhook, { proxy: true }));
+
+    const apiRoot = paymentApi.root.addResource('api');
+    const webhooksRes = apiRoot.addResource('webhooks');
+    const paystackRes = webhooksRes.addResource('paystack');
+    const paystackSchoolRes = paystackRes.addResource('school');
+    paystackSchoolRes.addMethod('POST', new apigw.LambdaIntegration(schoolPaymentWebhook, { proxy: true }));
+    const paystackClasspointRes = paystackRes.addResource('classpoint');
+    paystackClasspointRes.addMethod(
+      'POST',
+      new apigw.LambdaIntegration(classpointPaymentWebhook, { proxy: true })
+    );
+
+    new cdk.CfnOutput(this, 'PaymentsWebhookUrl', {
+      description: 'Legacy webhook URL for payment providers',
+      value: `${paymentApi.url}payments/webhook`
+    });
+    new cdk.CfnOutput(this, 'PaystackSchoolWebhookUrl', {
+      description: 'Paystack webhook URL for school fee payments',
+      value: `${paymentApi.url}api/webhooks/paystack/school`
+    });
+    new cdk.CfnOutput(this, 'PaystackClasspointWebhookUrl', {
+      description: 'Paystack webhook URL for ClassPoint subscriptions',
+      value: `${paymentApi.url}api/webhooks/paystack/classpoint`
+    });
 
     const messagingRes = paymentApi.root.addResource('messaging');
     const deliveryRes = messagingRes.addResource('delivery');
@@ -822,14 +895,27 @@ export class ClasspointServicesStack extends Stack {
     });
 
     const paymentWebhookErrors = new cloudwatch.Alarm(this, 'PaymentWebhookErrorsAlarm', {
-      alarmDescription: `Payment webhook Lambda errors (${envName})`,
-      metric: paymentWebhook.metricErrors(),
+      alarmDescription: `School payment webhook Lambda errors (${envName})`,
+      metric: schoolPaymentWebhook.metricErrors(),
       threshold: 1,
       evaluationPeriods: 1,
       datapointsToAlarm: 1,
       comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
     });
+    const classpointPaymentWebhookErrors = new cloudwatch.Alarm(
+      this,
+      'ClasspointPaymentWebhookErrorsAlarm',
+      {
+        alarmDescription: `ClassPoint payment webhook Lambda errors (${envName})`,
+        metric: classpointPaymentWebhook.metricErrors(),
+        threshold: 1,
+        evaluationPeriods: 1,
+        datapointsToAlarm: 1,
+        comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
+      }
+    );
 
     const messagingWebhookErrors = new cloudwatch.Alarm(this, 'MessagingWebhookErrorsAlarm', {
       alarmDescription: `Messaging webhook Lambda errors (${envName})`,
@@ -1021,6 +1107,7 @@ export class ClasspointServicesStack extends Stack {
       apiGateway5xx,
       apiGatewayLatency,
       paymentWebhookErrors,
+      classpointPaymentWebhookErrors,
       messagingWebhookErrors,
       messagingWorkerErrors,
       invoicingWorkerErrors,
@@ -1052,7 +1139,11 @@ export class ClasspointServicesStack extends Stack {
       }),
       new cloudwatch.GraphWidget({
         title: 'Webhook Lambda Errors',
-        left: [paymentWebhook.metricErrors(), messagingWebhook.metricErrors()]
+        left: [
+          schoolPaymentWebhook.metricErrors(),
+          classpointPaymentWebhook.metricErrors(),
+          messagingWebhook.metricErrors()
+        ]
       }),
       new cloudwatch.GraphWidget({
         title: 'Worker Errors',

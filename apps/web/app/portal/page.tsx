@@ -71,6 +71,12 @@ export default function PortalDashboard() {
                 View children
               </a>
             </div>
+            <div className="line-item muted">
+              <div>
+                <strong>Need to add another child?</strong>
+                <small>Contact your school admin to link siblings.</small>
+              </div>
+            </div>
           </div>
         </div>
         <div className="card">
@@ -84,6 +90,12 @@ export default function PortalDashboard() {
               <a className="button" href="/portal/children/fees">
                 View invoices
               </a>
+            </div>
+            <div className="line-item muted">
+              <div>
+                <strong>No invoices showing?</strong>
+                <small>Check with your school or reload later.</small>
+              </div>
             </div>
           </div>
         </div>

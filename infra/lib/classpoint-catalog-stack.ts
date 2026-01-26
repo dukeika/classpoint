@@ -45,6 +45,12 @@ export class ClasspointCatalogStack extends Stack {
     $util.unauthorized()
   #end
 `;
+    const billingGuard = tenantGuard + `
+  #set($groups = $util.defaultIfNull($ctx.identity.claims.get("cognito:groups"), []))
+  #if(!$groups.contains("APP_ADMIN") && !$groups.contains("SCHOOL_ADMIN") && !$groups.contains("BURSAR"))
+    $util.unauthorized()
+  #end
+`;
 
     new appsync.CfnResolver(this, 'ProviderConfigsBySchool', {
       apiId,
@@ -67,6 +73,70 @@ export class ClasspointCatalogStack extends Stack {
       responseMappingTemplate: '$util.toJson($ctx.result.items)'
     });
 
+    new appsync.CfnResolver(this, 'PermissionsQuery', {
+      apiId,
+      typeName: 'Query',
+      fieldName: 'permissions',
+      dataSourceName: 'PermissionsDS',
+      requestMappingTemplate: adminGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "Scan",
+  "limit": $util.defaultIfNull($ctx.args.limit, 100)
+}`,
+      responseMappingTemplate: '$util.toJson($ctx.result.items)'
+    });
+
+    new appsync.CfnResolver(this, 'DiscountRulesBySchoolQuery', {
+      apiId,
+      typeName: 'Query',
+      fieldName: 'discountRulesBySchool',
+      dataSourceName: 'DiscountRulesDS',
+      requestMappingTemplate: billingGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "Query",
+  "index": "bySchoolDiscount",
+  "query": {
+    "expression": "schoolId = :sid",
+    "expressionValues": {
+      ":sid": $util.dynamodb.toDynamoDBJson($ctx.args.schoolId)
+    }
+  },
+  "limit": $util.defaultIfNull($ctx.args.limit, 100)
+}`,
+      responseMappingTemplate: '$util.toJson($ctx.result.items)'
+    });
+
+    new appsync.CfnResolver(this, 'InstallmentPlanByInvoiceQuery', {
+      apiId,
+      typeName: 'Query',
+      fieldName: 'installmentPlanByInvoice',
+      dataSourceName: 'InstallmentPlansDS',
+      requestMappingTemplate: billingGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "Query",
+  "index": "byInvoiceInstallment",
+  "query": {
+    "expression": "invoiceId = :iid",
+    "expressionValues": {
+      ":iid": $util.dynamodb.toDynamoDBJson($ctx.args.invoiceId)
+    }
+  },
+#if($tenantSchool)
+  "filter": {
+    "expression": "schoolId = :tsid",
+    "expressionValues": {
+      ":tsid": $util.dynamodb.toDynamoDBJson($tenantSchool)
+    }
+  },
+#end
+  "limit": $util.defaultIfNull($ctx.args.limit, 20)
+}`,
+      responseMappingTemplate: '$util.toJson($ctx.result.items)'
+    });
+
     new appsync.CfnResolver(this, 'PlansQuery', {
       apiId,
       typeName: 'Query',
@@ -79,6 +149,22 @@ export class ClasspointCatalogStack extends Stack {
   "limit": $util.defaultIfNull($ctx.args.limit, 100)
 }`,
       responseMappingTemplate: '$util.toJson($ctx.result.items)'
+    });
+
+    new appsync.CfnResolver(this, 'PlanByIdQuery', {
+      apiId,
+      typeName: 'Query',
+      fieldName: 'planById',
+      dataSourceName: 'PlansDS',
+      requestMappingTemplate: adminGuard + `
+{
+  "version": "2018-05-29",
+  "operation": "GetItem",
+  "key": {
+    "id": $util.dynamodb.toDynamoDBJson($ctx.args.id)
+  }
+}`,
+      responseMappingTemplate: '$util.toJson($ctx.result)'
     });
 
     new appsync.CfnResolver(this, 'AddOnsQuery', {

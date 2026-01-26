@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { graphqlFetch } from "../../../../components/graphql";
 import { usePortalAuth } from "../../../../components/portal-auth";
 
@@ -21,6 +21,8 @@ type Invoice = {
   classGroupId?: string | null;
   termId: string;
   dueAt?: string | null;
+  currency?: string | null;
+  lastProcessedAt?: string | null;
   requiredSubtotal: number;
   optionalSubtotal: number;
   discountTotal: number;
@@ -56,6 +58,38 @@ type PaymentIntent = {
   externalReference?: string | null;
 };
 
+type PaystackHandler = {
+  openIframe: () => void;
+};
+
+type PaystackPop = {
+  setup: (options: Record<string, unknown>) => PaystackHandler;
+};
+
+declare global {
+  interface Window {
+    PaystackPop?: PaystackPop;
+  }
+}
+
+const loadPaystackScript = () =>
+  new Promise<void>((resolve, reject) => {
+    if (typeof window === "undefined") {
+      reject(new Error("Paystack is only available in the browser."));
+      return;
+    }
+    if (window.PaystackPop) {
+      resolve();
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://js.paystack.co/v1/inline.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Paystack checkout."));
+    document.body.appendChild(script);
+  });
+
 type ManualPaymentProof = {
   id: string;
   status: string;
@@ -64,7 +98,7 @@ type ManualPaymentProof = {
 };
 
 export default function PortalInvoiceDetailPage({ params }: { params: { invoiceId: string } }) {
-  const { token: authToken, schoolId, userId } = usePortalAuth();
+  const { token: authToken, schoolId, userId, email } = usePortalAuth();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [payments, setPayments] = useState<PaymentTxn[]>([]);
@@ -86,6 +120,14 @@ export default function PortalInvoiceDetailPage({ params }: { params: { invoiceI
 
   const parentId = userId;
   const invoiceNo = params.invoiceId;
+  const isProcessing = useMemo(
+    () => Boolean(invoice && !invoice.lastProcessedAt && invoice.amountDue === 0),
+    [invoice]
+  );
+  const isPayable = useMemo(
+    () => Boolean(invoice && invoice.status !== "PAID" && invoice.amountDue > 0),
+    [invoice]
+  );
 
   useEffect(() => {
     const loadInvoice = async () => {
@@ -103,6 +145,8 @@ export default function PortalInvoiceDetailPage({ params }: { params: { invoiceI
               classGroupId
               termId
               dueAt
+              currency
+              lastProcessedAt
               requiredSubtotal
               optionalSubtotal
               discountTotal
@@ -316,6 +360,12 @@ export default function PortalInvoiceDetailPage({ params }: { params: { invoiceI
               <span>Amount due</span>
               <span>{invoice.amountDue.toLocaleString()}</span>
             </div>
+            {isProcessing && (
+              <div className="summary-row">
+                <span>Status</span>
+                <span>Processing invoice totals...</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -343,6 +393,14 @@ export default function PortalInvoiceDetailPage({ params }: { params: { invoiceI
       <div className="card">
         <h3>Breakdown</h3>
         <div className="list">
+          {requiredLines.length === 0 && optionalLines.length === 0 && (
+            <div className="line-item">
+              <div>
+                <strong>No line items found</strong>
+                <small className="muted">If this looks wrong, contact your school before paying.</small>
+              </div>
+            </div>
+          )}
           {requiredLines.map((item) => (
             <div key={item.id} className="line-item">
               <label>
@@ -437,6 +495,10 @@ export default function PortalInvoiceDetailPage({ params }: { params: { invoiceI
             <span>Penalties</span>
             <span>{invoice.penaltyTotal.toLocaleString()}</span>
           </div>
+          <div className="summary-row">
+            <span>Paid</span>
+            <span>{invoice.amountPaid.toLocaleString()}</span>
+          </div>
           <div className="summary-row total">
             <span>Total due</span>
             <span>{invoice.amountDue.toLocaleString()}</span>
@@ -455,7 +517,9 @@ export default function PortalInvoiceDetailPage({ params }: { params: { invoiceI
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               <select value={paymentProvider} onChange={(event) => setPaymentProvider(event.target.value)}>
                 <option value="PAYSTACK">Paystack</option>
-                <option value="FLUTTERWAVE">Flutterwave</option>
+                <option value="FLUTTERWAVE" disabled>
+                  Flutterwave (coming soon)
+                </option>
               </select>
               <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
                 <option value="CARD">Card</option>
@@ -464,34 +528,75 @@ export default function PortalInvoiceDetailPage({ params }: { params: { invoiceI
               </select>
               <button
                 className="button"
-                disabled={creatingIntent}
+                disabled={creatingIntent || !isPayable}
                 onClick={async () => {
                   if (!authToken || !schoolId || !invoice) return;
                   setCreatingIntent(true);
                   setError(null);
                   try {
-                    const data = await graphqlFetch<{ createPaymentIntent: PaymentIntent | null }>(
-                      `mutation CreatePaymentIntent($input: CreatePaymentIntentInput!) {
-                        createPaymentIntent(input: $input) {
-                          id
-                          amount
-                          currency
-                          status
-                          provider
-                          externalReference
-                        }
-                      }`,
-                      {
-                        input: {
-                          schoolId,
-                          invoiceId: invoice.id,
-                          provider: paymentProvider,
-                          amount: invoice.amountDue,
-                          currency: "NGN"
-                        }
+                    const res = await fetch("/api/payments/initialize", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        schoolId,
+                        invoiceId: invoice.id,
+                        type: "SCHOOL_FEE",
+                        provider: paymentProvider,
+                        paymentMethod,
+                        payerParentId: parentId,
+                        payerEmail: email,
+                        callbackUrl: `${window.location.origin}/portal/payments/callback?invoiceNo=${invoice.invoiceNo}`
+                      })
+                    });
+                    const payload = (await res.json()) as {
+                      authorizationUrl?: string;
+                      reference?: string;
+                      paymentIntentId?: string | null;
+                      paymentTransactionId?: string | null;
+                      publicKey?: string;
+                      amountKobo?: number;
+                      currency?: string;
+                      email?: string;
+                      error?: string;
+                    };
+                    if (!res.ok || payload.error) {
+                      throw new Error(payload.error || "Failed to start payment.");
+                    }
+                    setPaymentIntent({
+                      id: payload.paymentIntentId || "pending",
+                      amount: invoice.amountDue,
+                      currency: "NGN",
+                      status: "INITIATED",
+                      provider: paymentProvider,
+                      externalReference: payload.reference || null
+                    });
+                    await loadPaystackScript();
+                    if (!payload.publicKey || !payload.reference || !payload.amountKobo) {
+                      throw new Error("Paystack checkout data is missing.");
+                    }
+                    const handler = window.PaystackPop?.setup({
+                      key: payload.publicKey,
+                      email: payload.email || email,
+                      amount: payload.amountKobo,
+                      currency: payload.currency || "NGN",
+                      ref: payload.reference,
+                      callback: () => {
+                        const url = new URL(`${window.location.origin}/portal/payments/callback`);
+                        url.searchParams.set("reference", payload.reference || "");
+                        url.searchParams.set("invoiceNo", invoice.invoiceNo);
+                        window.location.href = url.toString();
+                      },
+                      onClose: () => {
+                        setError("Payment was cancelled.");
                       }
-                    );
-                    setPaymentIntent(data.createPaymentIntent || null);
+                    });
+                    if (handler) {
+                      handler.openIframe();
+                    } else if (payload.authorizationUrl) {
+                      window.location.href = payload.authorizationUrl;
+                    } else {
+                      throw new Error("Unable to open Paystack checkout.");
+                    }
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "Failed to start payment.");
                   } finally {
@@ -499,11 +604,16 @@ export default function PortalInvoiceDetailPage({ params }: { params: { invoiceI
                   }
                 }}
               >
-                {creatingIntent ? "Starting..." : "Continue to payment"}
+                {creatingIntent ? "Starting..." : isPayable ? "Continue to payment" : "Invoice not payable"}
               </button>
             </div>
           </div>
         </div>
+        {!isPayable && (
+          <p className="muted" style={{ marginTop: 12 }}>
+            {isProcessing ? "Invoice totals are still processing. Refresh in a moment." : "No payment due."}
+          </p>
+        )}
         {paymentIntent?.status === "SUCCEEDED" && (
           <div className="card" style={{ marginTop: 12 }}>
             <strong>Payment successful</strong>
@@ -526,7 +636,7 @@ export default function PortalInvoiceDetailPage({ params }: { params: { invoiceI
             </div>
             <div className="summary-row">
               <span>Next step</span>
-              <span>Gateway redirect pending configuration</span>
+              <span>{creatingIntent ? "Redirecting to Paystack..." : "Complete checkout in Paystack"}</span>
             </div>
             <div className="summary-row">
               <span>Method</span>
@@ -660,4 +770,3 @@ export default function PortalInvoiceDetailPage({ params }: { params: { invoiceI
     </main>
   );
 }
-

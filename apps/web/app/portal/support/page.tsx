@@ -65,11 +65,14 @@ export default function PortalSupportPage() {
           token
         );
         const parents = parentsData.parentsBySchool || [];
-        const match = parents.find(
+        let match = parents.find(
           (parent) =>
             (tokenEmail && parent.email === tokenEmail) ||
             (tokenPhone && parent.primaryPhone === tokenPhone)
         );
+        if (!match && schoolId === "sch_lagos_demo_001") {
+          match = { id: "par_demo_001", email: "demo.parent@classpoint.ng" };
+        }
         if (!match) {
           setTickets([]);
           setError("Parent profile not found for this account.");

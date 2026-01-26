@@ -24,6 +24,7 @@ export default function PortalChildResultsPage({ params }: { params: { studentId
   const [reportCards, setReportCards] = useState<ReportCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const publishedCards = reportCards.filter((card) => card.status?.toUpperCase() === "PUBLISHED");
   useEffect(() => {
     const loadTerms = async () => {
       if (!authToken || !schoolId) return;
@@ -110,6 +111,17 @@ export default function PortalChildResultsPage({ params }: { params: { studentId
       </div>
 
       <div className="card">
+        <div className="inline-alert">
+          If fees are outstanding, results may be locked. Check your invoices on the Fees page before trying again.
+          <div className="cta-row" style={{ marginTop: 8 }}>
+            <a className="ghost-button" href="/portal/children/fees">
+              Go to Fees
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
         <div className="quick-actions">
           <select value={termId} onChange={(event) => setTermId(event.target.value)}>
             <option value="">Select term</option>
@@ -130,6 +142,17 @@ export default function PortalChildResultsPage({ params }: { params: { studentId
             <div className="list-card">
               <strong>No report cards yet</strong>
               <span>Results will appear once published by the school.</span>
+            </div>
+          </div>
+        )}
+        {!loading && !error && publishedCards.length === 0 && reportCards.length > 0 && (
+          <div className="list-cards">
+            <div className="list-card">
+              <strong>Results not released yet</strong>
+              <span className="muted">
+                Report cards exist but are not published. If fees are outstanding, settle balances and try again.
+              </span>
+              <span className="muted">Need help? Contact your school.</span>
             </div>
           </div>
         )}

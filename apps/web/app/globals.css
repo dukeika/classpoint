@@ -48,6 +48,18 @@ body {
     radial-gradient(circle at 80% 0%, rgba(30, 64, 175, 0.12), transparent 45%);
 }
 
+.login-page.login-page-admin {
+  background: radial-gradient(circle at 16% 18%, rgba(37, 99, 235, 0.25), transparent 50%),
+    radial-gradient(circle at 82% 12%, rgba(59, 7, 100, 0.18), transparent 48%),
+    #0f172a;
+}
+
+.login-page.login-page-portal {
+  background: radial-gradient(circle at 16% 18%, rgba(14, 116, 144, 0.22), transparent 52%),
+    radial-gradient(circle at 82% 12%, rgba(21, 128, 61, 0.2), transparent 50%),
+    #0b1721;
+}
+
 .login-shell {
   width: min(1100px, 100%);
   display: grid;
@@ -57,6 +69,16 @@ body {
   border-radius: 28px;
   padding: 24px;
   box-shadow: var(--shadow);
+}
+
+.login-shell.login-admin {
+  border: 1px solid rgba(37, 99, 235, 0.15);
+  box-shadow: 0 18px 48px rgba(37, 99, 235, 0.18);
+}
+
+.login-shell.login-portal {
+  border: 1px solid rgba(14, 116, 144, 0.18);
+  box-shadow: 0 18px 48px rgba(14, 116, 144, 0.16);
 }
 
 .login-panel {
@@ -148,6 +170,26 @@ body {
   color: #f8fafc;
   position: relative;
   overflow: hidden;
+}
+
+.login-aside.login-aside-admin {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.9), rgba(30, 27, 75, 0.92));
+}
+
+.login-aside.login-aside-portal {
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.9), rgba(21, 128, 61, 0.9));
+}
+
+.chip.chip-admin {
+  background: rgba(37, 99, 235, 0.14);
+  color: #1d4ed8;
+  border: 1px solid rgba(37, 99, 235, 0.35);
+}
+
+.chip.chip-portal {
+  background: rgba(16, 185, 129, 0.14);
+  color: #0f766e;
+  border: 1px solid rgba(16, 185, 129, 0.28);
 }
 
 .login-aside::before,
@@ -322,6 +364,10 @@ a {
   padding: 20px 22px;
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border);
+}
+
+.compact-card {
+  padding: 12px 16px;
 }
 
 .card h3 {
@@ -897,6 +943,22 @@ a {
   overflow-y: auto;
 }
 
+.sidebar-scroll-hint {
+  position: sticky;
+  bottom: 10px;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 10px 0 12px;
+  color: #cbd5e1;
+  font-weight: 800;
+  background: linear-gradient(180deg, rgba(11, 18, 32, 0), rgba(11, 18, 32, 0.85));
+  pointer-events: none;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  gap: 4px;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -1021,6 +1083,10 @@ a {
   display: flex;
   align-items: center;
   gap: 14px;
+}
+
+.topbar-right {
+  margin-left: auto;
 }
 
 .search input {
@@ -1229,6 +1295,69 @@ a {
     radial-gradient(circle at 85% 0%, rgba(15, 118, 110, 0.16), transparent 50%);
   border-radius: 24px;
   padding: 8px;
+}
+
+.dashboard-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.platform-nav {
+  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+  background: #ffffff;
+  display: grid;
+  gap: 16px;
+}
+
+.platform-nav-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.platform-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--brand-600), var(--brand-700));
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.platform-nav-links {
+  display: grid;
+  gap: 8px;
+}
+
+.platform-nav-link {
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--ink-700);
+  border: 1px solid var(--border);
+  background: #ffffff;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.platform-nav-link:hover {
+  background: var(--surface-muted);
+  border-color: #d6e0f0;
+}
+
+.platform-nav-link.active {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: #cbd5f5;
+  color: var(--brand-700);
+  font-weight: 700;
+}
+
+.platform-content {
+  padding: 24px;
 }
 
 .platform-page h1,
@@ -1846,6 +1975,26 @@ a {
   gap: 4px;
 }
 
+.wizard-progress {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.wizard-progress-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.wizard-progress-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand-500), var(--brand-700));
+  transition: width 0.2s ease;
+}
+
 .wizard-pill {
   display: inline-flex;
   align-items: center;
@@ -2457,6 +2606,18 @@ a {
   margin-top: 24px;
 }
 
+.marketing-role-cta {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.role-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .marketing-metrics strong {
   display: block;
   font-size: 1.4rem;
@@ -2839,6 +3000,17 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.role-shortcuts {
+  margin-top: 18px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.role-shortcuts p {
+  margin: 4px 0 8px;
 }
 
 .school-pill {

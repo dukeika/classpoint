@@ -29,16 +29,49 @@ export default function PortalChildrenPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [localSchoolId, setLocalSchoolId] = useState("");
 
   const tokenDetails = decodeToken(authToken);
   const tokenEmail = tokenDetails?.email || tokenDetails?.["cognito:username"] || "";
   const tokenPhone = tokenDetails?.phone_number || "";
+  const effectiveSchoolId = schoolId || localSchoolId;
 
   const loadChildren = async () => {
-    if (!authToken || !schoolId) return;
+    if (!authToken) {
+      setError("Sign in to load your children.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
+      let resolvedSchoolId = effectiveSchoolId;
+      if (!resolvedSchoolId && typeof window !== "undefined") {
+        const host = window.location.hostname.split(":")[0];
+        const root = ".classpoint.ng";
+        if (host.endsWith(root)) {
+          const slug = host.slice(0, -root.length);
+          if (slug === "demo-school" || slug === "demo") {
+            resolvedSchoolId = "sch_lagos_demo_001";
+            setLocalSchoolId(resolvedSchoolId);
+          }
+          if (slug && !resolvedSchoolId) {
+            const schoolRes = await fetch("/api/public-graphql", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                query: `query SchoolBySlug($slug: String!) { schoolBySlug(slug: $slug) { id } }`,
+                variables: { slug }
+              })
+            });
+            const schoolPayload = (await schoolRes.json()) as { data?: { schoolBySlug?: { id?: string } } };
+            resolvedSchoolId = schoolPayload?.data?.schoolBySlug?.id || "";
+            if (resolvedSchoolId) setLocalSchoolId(resolvedSchoolId);
+          }
+        }
+      }
+      if (!resolvedSchoolId) {
+        throw new Error("School context missing. Please refresh and try again.");
+      }
       const parentsData = await graphqlFetch<{ parentsBySchool: Parent[] }>(
         `query ParentsBySchool($schoolId: ID!, $limit: Int) {
           parentsBySchool(schoolId: $schoolId, limit: $limit) {
@@ -47,14 +80,17 @@ export default function PortalChildrenPage() {
             email
           }
         }`,
-        { schoolId, limit: 200 }
+        { schoolId: resolvedSchoolId, limit: 200 }
       );
       const parents: Parent[] = parentsData.parentsBySchool || [];
-      const match = parents.find(
+      let match = parents.find(
         (parent) =>
           (tokenEmail && parent.email === tokenEmail) ||
           (tokenPhone && parent.primaryPhone === tokenPhone)
       );
+      if (!match && resolvedSchoolId === "sch_lagos_demo_001") {
+        match = { id: "par_demo_001", email: "demo.parent@classpoint.ng" };
+      }
       if (!match) {
         throw new Error("Parent profile not found for this account.");
       }
@@ -77,7 +113,7 @@ export default function PortalChildrenPage() {
             admissionNo
           }
         }`,
-        { schoolId, limit: 200 }
+        { schoolId: resolvedSchoolId, limit: 200 }
       );
       setStudents(studentsData.studentsBySchool || []);
     } catch (err) {
@@ -101,18 +137,20 @@ export default function PortalChildrenPage() {
           <h1>Children</h1>
           <p className="muted">Access each child profile, fees, and results.</p>
         </div>
-        <button className="button" onClick={loadChildren} disabled={!authToken || !schoolId || loading}>
+        <button className="button" onClick={loadChildren} disabled={!authToken || loading}>
           {loading ? "Loading..." : "Load my children"}
         </button>
       </div>
 
       <div className="card">
+        {!authToken && <p className="muted">Sign in to load your children.</p>}
         {error && <p>{error}</p>}
         {!loading && !error && visibleChildren.length === 0 && (
           <div className="list-cards">
             <div className="list-card">
               <strong>No children found</strong>
-              <span>Click “Load my children” to fetch linked profiles.</span>
+              <span>Click “Load my children” to fetch linked profiles, or contact your school if nothing appears.</span>
+              <span className="muted">Need help? support@classpoint.ng</span>
             </div>
           </div>
         )}

@@ -58,6 +58,20 @@ export default function MarketingLanding() {
               <span>for staff, teachers, parents</span>
             </div>
           </div>
+          <div className="marketing-role-cta">
+            <small className="muted">Demo logins by role</small>
+            <div className="role-buttons">
+              <a className="ghost-button" href={`https://${demoHost}/login?next=/admin`}>
+                Admin demo
+              </a>
+              <a className="ghost-button" href={`https://${demoHost}/login?next=/teacher`}>
+                Teacher demo
+              </a>
+              <a className="ghost-button" href={`https://${demoHost}/login?next=/portal`}>
+                Parent demo
+              </a>
+            </div>
+          </div>
         </div>
         <div className="marketing-hero-card">
           <h3>What a school admin sees</h3>
@@ -88,6 +102,27 @@ export default function MarketingLanding() {
               <strong>+18%</strong>
               <span>attendance uplift</span>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="marketing-faq" id="faq">
+        <div>
+          <h2>Questions schools ask</h2>
+          <p className="muted">Short answers for operations and finance teams.</p>
+        </div>
+        <div className="marketing-faq-grid">
+          <div>
+            <h4>How fast can we launch?</h4>
+            <p>Most schools go live in 4 weeks with guided onboarding and data import support.</p>
+          </div>
+          <div>
+            <h4>Does it support term billing?</h4>
+            <p>Yes—sessions, terms, classes, and fee templates are built-in and configurable.</p>
+          </div>
+          <div>
+            <h4>Is it local-payment ready?</h4>
+            <p>Designed for Nigerian payment flows with proof uploads, receipts, and SMS/WhatsApp reminders.</p>
           </div>
         </div>
       </section>
